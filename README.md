@@ -38,10 +38,10 @@ You can communicate with the server easily by using both TCP and UDP.
 <?php
 include 'inc.hsclient.php';
 
-define("HSS_HOST", "127.0.0.1");
-define("HSS_PORT", "7777");
+define("HS_HOST", "127.0.0.1");
+define("HS_PORT", "7777");
 
-$go = new HSClient(WS_HOST, WS_PORT); // change to HSClientUDP to use UDP packets instead of TCP connection
+$go = new HSClient(HS_HOST, HS_PORT); // change to HSClientUDP to use UDP packets instead of TCP connection
 $header_out = [];
 $status = $go->sendData(['action'=>'server-status'], $header_out, 2);
 
