@@ -62,6 +62,7 @@ Developing modules
 ------------------
 Adding modules to server should be self-explanatory, please see /echo directory inside server sources to see example of simple module, later there'll be documentation added.
 
+Each module needs to be registered afterwards (please see main server file)
 
 ```go
 package echo
