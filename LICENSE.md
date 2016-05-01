@@ -2,7 +2,7 @@ This code is distributed in 2 ways:
  * Terms described by GNU GPLv3.
  * Commercial license
  
- Original authors and owners of this work are extempt from all of GNU GPLv3 obligations and limitations.
+ Original authors and owners of this work are extempt from all of GNU GPLv3 obligations and limitations, and different license applies.
 
 
                     GNU GENERAL PUBLIC LICENSE
