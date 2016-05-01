@@ -4,6 +4,24 @@ HSServer is golang RPC-like server framework, that'll allow you to create and ma
 
 ![Image Benchmark](/docs/benchmark.png)
 
+Easy Deployment
+----------------
+Like 1,2,3... 
+ 1. Compile and run the server, all is pre-configured
+ 2. Add single client file to your PHP app
+ 3. Call golang code, get php struct back (using JSON)
+
+```php
+<?php
+include 'inc.hsclient.php';
+
+$go = new HSClient();
+$header_out = [];
+$data = $go->sendDataJSON(['action'=>'echo', 'data'=>123], $header_out, 2);
+print_r($data);
+```
+
+
 Features
 -----------
  * Slab memory allocator and buffer sharing to limit memory allocation and GC
