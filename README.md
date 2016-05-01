@@ -21,6 +21,8 @@ screen
 cd ./go-worker/bin
 started=\`date +%Y%m%d@%H:%M\`; for i in {1..999999}; do ./go-worker 1>/dev/null 2>"error-$started-$i.log.txt"; sleep 10; done;</pre>
 
+If everything went ok you should be able to see server's status page: http://127.0.0.1:7778/?action=server-status
+
 Configuration
 -----------------
 Configuration needs to be stored in conf.json in the binary directory. By default, the server will listen on localhost. Connections can be made using built-in protocol on TCP and UDP port 7777, and also HTTP on port 7778.
@@ -60,3 +62,40 @@ Developing modules
 ------------------
 Adding modules to server should be self-explanatory, please see /echo directory inside server sources to see example of simple module, later there'll be documentation added.
 
+
+```go
+package echo
+
+import (
+	"encoding/json"
+	"handler_socket2"
+)
+
+type HandleEcho struct {
+}
+
+func (this *HandleEcho) Initialize() {
+
+	handler_socket2.StatusPluginRegister(func() (string, string) {
+		return "Echo", "Echo plugin is enabled"
+	})
+
+}
+
+func (this *HandleEcho) Info() string {
+	return "This plugin will send back received data"
+}
+
+func (this *HandleEcho) GetActions() []string {
+	return []string{"echo"}
+}
+
+func (this *HandleEcho) HandleAction(action string, data *handler_socket2.HSParams) string {
+
+	ret := map[string]string{}
+	ret["data"] = data.GetParam("data", "")
+	_tmp, _ := json.Marshal(ret)
+
+	return string(_tmp)
+}
+````
