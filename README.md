@@ -2,7 +2,7 @@
 
 HSServer is golang RPC-like server framework, that'll allow you to create and manage high performance micro-services that can be accessed via high performance binary protocol, and using HTTP. Its purpose is to allow PHP developers to easily migrate algorithms that require persistent data or a lot of CPU power to golang.
 
-![Image Benchmark]/docs/benchmark.png
+![Image Benchmark](/docs/benchmark.png)
 
 Features
 -----------
