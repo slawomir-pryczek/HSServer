@@ -3,7 +3,7 @@
 	"description": "Client/Server solution for calling golang functions from PHP using HTTP and sockets protocols",
 	"version": "3.001",
 	"type": "library",
-	"keywords": ["rpc", "sockets", "php", "golang"],
+	"keywords": ["rpc", "sockets", "php", "golang", "rpc-server", "rpc-client"],
 	"homepage": "https://github.com/slawomir-pryczek/HSServer/",
 	"time": "2016-11-11",
 	"autoload": {
