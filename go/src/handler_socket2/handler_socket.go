@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"handler_socket2/byteslabs"
 	"handler_socket2/hscommon"
+	"handler_socket2/oslimits"
 	"handler_socket2/stats"
 	"io"
 	"io/ioutil"
@@ -19,13 +20,14 @@ import (
 	"time"
 )
 
-const version = "HSServer v2.001"
+const version = "HSServer v3.001"
 const compression_enable = true
-const compression_threshold = 1024 * 30 //450
+const compression_threshold = 1024 * 800 //450
 
 var uptime_started int
 
 func init() {
+	oslimits.SetOpenFilesLimit(262144)
 	uptime_started = int(time.Now().UnixNano()/1000000000) - 1 // so we won't divide by 0
 }
 
@@ -156,7 +158,7 @@ func serveSocket(conn *net.TCPConn, handler handlerFunc) {
 			to_log += "#     ERROR!!     #\n"
 			to_log += "###################\n"
 			to_log += "\n"
-			to_log += fmt.Sprintf("Request: %v\n\n", *c)
+			to_log += fmt.Sprintf("Request: %v\n\n", *c) + "\n"
 			to_log += "Program panic:\n"
 
 			trace := make([]byte, 4096)
@@ -352,14 +354,18 @@ func serveSocket(conn *net.TCPConn, handler handlerFunc) {
 
 		// ##############################################################################
 		// <<< Stats code
+		skip_response_sent := params.GetParamBUnsafe("__skipsendback", nil) != nil
 		took := newconn.StateWriting(uint64(bytes_rec_uncompressed), uint64(message_len), response_len)
 		// <<< Stats code ends
 
-		_sent_bytes := sendBack(conn, response, int(took), guid, sharedmem[:0])
+		_sent_bytes := int(response_len)
+		if !skip_response_sent {
+			_sent_bytes = sendBack(conn, params, response, int(took), guid, sharedmem[:0])
+		}
 
 		// ##############################################################################
 		// <<< Stats code
-		newconn.StateKeepalive(uint64(_sent_bytes), took)
+		newconn.StateKeepalive(uint64(_sent_bytes), took, skip_response_sent)
 		// <<< Stats code ends
 
 		t_start = 0
@@ -371,7 +377,7 @@ func serveSocket(conn *net.TCPConn, handler handlerFunc) {
 
 }
 
-func sendBack(conn *net.TCPConn, data []byte, took int, guid []byte, sharedmem []byte) int {
+func sendBack(conn *net.TCPConn, params *HSParams, data []byte, took int, guid []byte, sharedmem []byte) int {
 
 	buffer := bytes.NewBuffer(sharedmem)
 
@@ -380,6 +386,10 @@ func sendBack(conn *net.TCPConn, data []byte, took int, guid []byte, sharedmem [
 	fingerprint := fmt.Sprintf("%x", h.Sum(nil))
 	resp += "Fingerprint: " + fingerprint + "\r\n"
 	*/
+
+	for _, v := range params.additional_resp_headers {
+		buffer.WriteString(v)
+	}
 
 	buffer.WriteString(fmt.Sprintf("Request 200 OK\r\nServer: %s\r\nContent-Type: text/html\r\nTook:%dµs\r\nGUID:%s\r\n",
 		version, took, guid))

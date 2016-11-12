@@ -3,6 +3,7 @@ package hscommon
 import (
 	"fmt"
 	"math"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -77,6 +78,15 @@ func FormatBytes(b uint64) string {
 	return fmt.Sprintf("%d.%02d%s", ba, bb, unit)
 }
 
+func FormatBytesI(b uint64) string {
+	ret := strings.Split(FormatBytes(b), ".")
+	if len(ret) < 2 || len(ret[1]) < 2 {
+		return strings.Join(ret, ".")
+	}
+
+	return ret[0] + "." + string(ret[1][0]) + strings.Trim(ret[1], "0123456789)")
+}
+
 func FormatTime(t int) string {
 	uptime_str := ""
 	ranges := []string{"day", "hour", "minute", "second"}
@@ -103,17 +113,23 @@ type tablegen struct {
 	header    string
 	items     []StrScoredItems
 	className string
+
+	_header_data []string
+	_row_data    [][]string
 }
 
 func NewTableGen(header ...string) *tablegen {
 	ret := tablegen{}
 	ret.header = "<tr><td>" + strings.Join(header, "</td><td>") + "</td></tr>"
+	ret._header_data = header
 	return &ret
 }
 
 func (this *tablegen) AddRow(data ...string) {
 	_d := "<tr class='##class##'><td>" + strings.Join(data, "</td><td>") + "</td></tr>\n"
 	this.items = append(this.items, StrScoredItems{item: _d, _usrdata: data})
+
+	this._row_data = append(this._row_data, data)
 }
 
 func (this *tablegen) Render() string {
@@ -130,6 +146,44 @@ func (this *tablegen) Render() string {
 	}
 
 	return "<table" + _class + ">\n<thead>" + this.header + "</thead>\n" + "<tbody>" + data + "</tbody>\n</table>"
+}
+
+func (this *tablegen) RenderHoriz(columns int) string {
+
+	ret := ""
+	_class := ""
+	if len(this.className) > 0 {
+		_class = " class='" + this.className + "'"
+	}
+
+	pos := 0
+
+	for pos < len(this._row_data) {
+
+		ret += "<table" + _class + "><thead>"
+		for col_no, v := range this._header_data {
+			ret += "<tr><td>" + v + "</td>"
+			for i := pos; i < len(this._row_data) && i-pos < columns; i++ {
+
+				if col_no >= len(this._row_data[i]) {
+					break
+				}
+
+				ret += "<td>" + this._row_data[i][col_no] + "</td>"
+			}
+
+			if col_no == 0 {
+				ret += "</thead>"
+			}
+			ret += "</tr>"
+		}
+		ret += "</table><br><br>"
+
+		pos += columns
+	}
+
+	return ret
+
 }
 
 func (this *tablegen) RenderSorted(columns ...int) string {
@@ -231,4 +285,211 @@ func TSNow() int {
 	}
 
 	return int(__tmp)
+}
+
+// generate perc used
+type bucket_stats struct {
+	size []int
+	used []int
+
+	elements int
+	curr_el  int
+}
+
+func NewBucketStats(elements int) *bucket_stats {
+
+	return &bucket_stats{make([]int, elements), make([]int, elements), elements, 0}
+}
+
+func (this *bucket_stats) Push(size, used int) {
+
+	this.size[this.curr_el] += size
+	this.used[this.curr_el] += used
+
+	this.curr_el++
+	if this.curr_el >= this.elements {
+		this.curr_el = 0
+	}
+}
+
+func (this *bucket_stats) Gen() string {
+
+	ret := ""
+	for i := 0; i < this.elements; i++ {
+
+		size := this.size[i]
+		used := this.used[i]
+		if size == 0 || used == 0 {
+			ret += "_"
+			continue
+		}
+
+		perc := int(float64(used*100.0) / float64(size))
+
+		switch {
+		case perc < 2:
+			ret += "&#x25E1;"
+		case perc < 4:
+			ret += "&#x25CC;"
+		case perc < 8:
+			ret += "&#x25CB;"
+		case perc < 12:
+			ret += "&#x25CE;"
+		case perc < 25:
+			ret += "&#x25D4;"
+		case perc < 50:
+			ret += "&#x25D1;"
+		case perc < 75:
+			ret += "&#x25D5;"
+		case perc < 90:
+			ret += "&#x1f311;"
+		case perc >= 90:
+			ret += "<span style='color:red'>&#x1f311;</span>"
+		}
+
+	}
+
+	return "<pre style='font-family: monospace!important'> (?) " + ret + "</pre>"
+}
+
+// generate perc used
+type percentile_stats struct {
+	data   []int
+	sum    int
+	sorted bool
+}
+
+func NewPercentileStats(maxSize int) *percentile_stats {
+	return &percentile_stats{make([]int, 0, maxSize), 0, true}
+}
+
+func (this *percentile_stats) Push(v int) {
+	this.data = append(this.data, v)
+	this.sum += v
+	this.sorted = false
+}
+
+func (this *percentile_stats) Get(percentile int) int {
+
+	if len(this.data) < 5 {
+		return 0
+	}
+
+	if !this.sorted {
+		sort.Sort(sort.IntSlice(this.data))
+		this.sorted = true
+	}
+
+	l := int(float64(len(this.data)) * (float64(percentile) / float64(100.0)))
+	if l >= len(this.data) {
+		l = len(this.data) - 1
+	}
+
+	return this.data[l]
+}
+
+func (this *percentile_stats) Avg() float64 {
+	return float64(this.sum) / float64(len(this.data))
+}
+
+func (this *percentile_stats) Clean() {
+	this.data = this.data[:0]
+	this.sum = 0
+	this.sorted = true
+}
+
+func (this *percentile_stats) CountLoHi(threshold int) (int, int) {
+
+	if len(this.data) < 1 {
+		return 0, 0
+	}
+
+	if !this.sorted {
+		sort.Sort(sort.IntSlice(this.data))
+		this.sorted = true
+	}
+
+	for k, v := range this.data {
+
+		if v > threshold {
+			return k, len(this.data) - k
+		}
+
+	}
+
+	return len(this.data), 0
+}
+
+func Inet_aton(ip string) uint32 {
+
+	var ret uint32
+
+	chunks := strings.Split(strings.Trim(ip, "\r\n \t"), ".")
+	for k, v := range chunks {
+
+		if k > 3 {
+			break
+		}
+
+		vv, _ := strconv.Atoi(v)
+		k = (3 - k) * 8
+
+		ret = ret + (uint32(vv) << uint8(k))
+	}
+
+	return ret
+}
+
+func Inet_ntoa(ip uint32) string {
+
+	ip_oct := [4]byte{0, 0, 0, 0}
+	for i := 0; i < 4; i++ {
+		ip_oct[3-i] = byte(ip & 0xff)
+		ip = ip >> 8
+	}
+
+	return fmt.Sprintf("%d.%d.%d.%d", ip_oct[0], ip_oct[1], ip_oct[2], ip_oct[3])
+}
+
+// #############################################################################
+// Time Span
+
+type TimeSpan struct {
+	req_time int64
+}
+
+func NewTimeSpan() *TimeSpan {
+
+	ts := TimeSpan{}
+	ts.req_time = time.Now().UnixNano()
+	return &ts
+
+}
+
+func (ts *TimeSpan) Get() string {
+
+	t := float64((time.Now().UnixNano() - ts.req_time)) / float64(1000000)
+
+	return fmt.Sprintf("%.3fms", t)
+}
+
+func (ts *TimeSpan) GetUS() string {
+
+	t := float64((time.Now().UnixNano() - ts.req_time)) / float64(1000)
+
+	return fmt.Sprintf("%.3fus", t)
+}
+
+func (ts *TimeSpan) GetRaw() float64 {
+	return float64((time.Now().UnixNano() - ts.req_time)) / float64(1000000)
+}
+
+func (ts *TimeSpan) GetRawUS() float64 {
+	return float64((time.Now().UnixNano() - ts.req_time)) / float64(1000)
+}
+
+func ExitErr(err string) {
+
+	fmt.Fprintf(os.Stderr, "Fatal error, server will shutdown\n"+err+"\n")
+	os.Exit(1)
 }

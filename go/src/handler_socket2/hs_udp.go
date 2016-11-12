@@ -3,10 +3,9 @@ package handler_socket2
 import (
 	"bytes"
 	"compress/flate"
+	"encoding/binary"
 	"fmt"
 	"net"
-	"net/url"
-	"strings"
 	"sync"
 	"time"
 )
@@ -55,9 +54,11 @@ func udpStatBeginRequest(rec_id string, request_no int) {
 
 func udpStatRequest(rec_id, request string) {
 	udpStatMutex.Lock()
-	udpStats[rec_id].req = request
-	udpStats[rec_id].sub_requests_pending++
-	udpStats[rec_id].status = "P"
+	if info, exists := udpStats[rec_id]; exists {
+		info.req = request
+		info.sub_requests_pending++
+		info.status = "P"
+	}
 	udpStatMutex.Unlock()
 }
 
@@ -69,15 +70,16 @@ func udpStatFinishRequest(rec_id string, is_ok bool) {
 	}
 
 	udpStatMutex.Lock()
-	udpStats[rec_id].sub_requests_pending--
+	if info, exists := udpStats[rec_id]; exists {
+		info.sub_requests_pending--
+		fmt.Println("TASK PENDING FOR CLEANUP: ", udpStats[rec_id], is_ok)
 
-	fmt.Println("TASK PENDING FOR CLEANUP: ", udpStats[rec_id], is_ok)
+		if !is_ok || info.sub_requests_pending <= 0 {
+			info.status = status
+			info.end_time = time.Now().UnixNano()
 
-	if !is_ok || udpStats[rec_id].sub_requests_pending <= 0 {
-		udpStats[rec_id].status = status
-		udpStats[rec_id].end_time = time.Now().UnixNano()
-
-		cleaners_insert(rec_id)
+			cleaners_insert(rec_id)
+		}
 	}
 	udpStatMutex.Unlock()
 }
@@ -87,6 +89,7 @@ func GetStatusUDP() string {
 	udpStatMutex.Lock()
 	defer udpStatMutex.Unlock()
 
+	time_now := time.Now().UnixNano()
 	ret := ""
 	for k, v := range udpStats {
 		tmp := "<div class='thread_list'>"
@@ -96,7 +99,12 @@ func GetStatusUDP() string {
 			status = fmt.Sprintf("%s/%d", status, v.sub_requests_pending)
 		}
 
-		tmp += fmt.Sprintf("<span>Num. %d - %s</span> - <b>[%s]</b> %s\n", v.request_no, k, status, v.req)
+		_took := float64(time_now-v.start_time) / float64(1000000)
+		if status == "F" {
+			_took = float64(v.end_time-v.start_time) / float64(1000000)
+		}
+
+		tmp += fmt.Sprintf("<span>Num. %d - %s</span> - <b>[%s]</b> %.3fms - %s\n", v.request_no, k, status, _took, v.req)
 		tmp += "</div>\n"
 		ret += tmp
 	}
@@ -144,9 +152,54 @@ func startServiceUDP(bindTo string, handler handlerFunc) {
 			}
 
 			req_no++
-			udpStatBeginRequest(key, req_no)
-
 			message := source_buffer[key]
+
+			// version 2 UDP protocol!
+			v2_protocol := len(message) > 0 && message[0] == 'B' || message[0] == 'b'
+			if v2_protocol {
+
+				for {
+					move_forward, msg_body, is_compressed := processRequestDataV2(key, message, handler)
+
+					// error in message, delete all data!
+					if move_forward == -1 {
+						udpStatBeginRequest(key, req_no)
+						message = message[:0]
+						udpStatFinishRequest(key, false)
+						break
+					}
+
+					// packet processed correctly, process the message!
+					if move_forward > 0 {
+
+						udpStatBeginRequest(key, req_no)
+						go func(key string, msg_body []byte, is_compressed bool) {
+							is_ok := runRequestV2(key, msg_body, is_compressed, handler)
+							udpStatFinishRequest(key, is_ok)
+						}(key, msg_body, is_compressed)
+
+						message = message[move_forward:]
+					}
+
+					// we need more data, if
+					// 1. engine needs it
+					// 2. data is empty
+					if move_forward == 0 || len(message) == 0 {
+						break
+					}
+				}
+
+				if len(message) == 0 {
+					delete(source_buffer, key)
+				} else {
+					source_buffer[key] = message
+				}
+			}
+
+			if v2_protocol {
+				continue
+			}
+
 			for {
 
 				move_forward, msg_body, is_compressed := processRequestData(key, message, handler)
@@ -162,8 +215,7 @@ func startServiceUDP(bindTo string, handler handlerFunc) {
 				if move_forward > 0 {
 
 					go func(key string, msg_body []byte, is_compressed bool) {
-						udpStatRequest(key, string(msg_body))
-						runRequest(msg_body, is_compressed, handler)
+						runRequest(key, msg_body, is_compressed, handler)
 						udpStatFinishRequest(key, true)
 					}(key, msg_body, is_compressed)
 
@@ -193,98 +245,59 @@ func startServiceUDP(bindTo string, handler handlerFunc) {
 // < -1 error - flush the buffer
 // 0 - needs more data to process the request
 // > 1 message processed correctly - move forward
-func processRequestData(key string, message []byte, handler handlerFunc) (int, []byte, bool) {
+func processRequestDataV2(key string, message []byte, handler handlerFunc) (int, []byte, bool) {
 
-	var terminator = []byte("\r\n\r\n")
-	const terminator_len = len("\r\n\r\n")
-
-	lenf := bytes.Index(message, terminator)
-	if lenf == -1 {
+	if len(message) < 5 {
 		return 0, nil, false
 	}
 
-	// request is terminated - we can start to process it!
-	bytes_rec_uncompressed := 0
-	is_compressed, required_size, guid := processHeader(message[0:lenf])
-	fmt.Println("GUID: ", guid)
+	size := int(binary.LittleEndian.Uint32(message[1:5]))
+	is_compressed := message[0] == 'B'
 
-	if required_size < 0 {
+	if size < 0 {
 		return -1, nil, false
 	}
 
-	// we also need to account for length header
-	required_size += lenf + terminator_len
-
-	// still need more data to arrive?
-	if len(message) < required_size {
-		return 0, nil, false
+	if len(message) >= size {
+		return size, message[5:size], is_compressed
 	}
 
-	bytes_rec_uncompressed++
-	return required_size, message[lenf+terminator_len : required_size], is_compressed
+	return 0, nil, false
 }
 
-func runRequest(message_body []byte, is_compressed bool, handler handlerFunc) {
-	// compression support!
+func runRequestV2(key string, message_body []byte, is_compressed bool, handler handlerFunc) bool {
 
-	fmt.Println("FROM UDP: ", string(message_body))
-	curr_msg := ""
+	// compression support!
 	if is_compressed {
 
 		r := flate.NewReader(bytes.NewReader(message_body))
-
 		buf := new(bytes.Buffer)
 		buf.ReadFrom(r)
-		curr_msg = buf.String()
+		message_body = buf.Bytes()
 		r.Close()
 
-	} else {
-		curr_msg = string(message_body)
 	}
 	// <<
 
-	// process packet - parameters
-	params, _ := url.ParseQuery(curr_msg)
-	fmt.Print(params)
-
-	params2 := make(map[string]string)
-	for _k, _v := range params {
-		params2[_k] = implode(",", _v)
+	if Config.debug {
+		fmt.Println("FROM UDP: ", string(message_body))
 	}
-	// <<
 
-	data := ""
-	action := ""
-	action_specified := false
-	for {
-
-		action, action_specified = params2["action"]
-		if !action_specified || action == "" {
-			action = "default"
-		}
-
-		data = handler(CreateHSParamsFromMap(params2))
-
-		//fmt.Println(data)
-		if !strings.HasPrefix(data, "X-Forward:") {
-			break
-		}
-
-		var redir_vals url.Values
-		var err error
-		if redir_vals, err = url.ParseQuery(data[10:]); err != nil {
-
-			data = "X-Forward, wrong redirect" + data
-			break
-		}
-
-		params2 = make(map[string]string)
-		for rvk, _ := range redir_vals {
-			params2[strings.TrimLeft(rvk, "?")] = redir_vals.Get(rvk)
-		}
-
-		fmt.Println(params2)
+	hsparams := CreateHSParams()
+	guid := ReadHSParams(message_body, hsparams)
+	if guid == nil {
+		hsparams.Cleanup()
+		return false
 	}
+
+	udpStatRequest(key, hsparams.getParamInfoHTML())
+	data := handler(hsparams)
+	if Config.debug {
+		fmt.Println(string(guid), ">>", data)
+	}
+	hsparams.Cleanup()
+
+	return true
 }
 
 type stat_cleaner struct {

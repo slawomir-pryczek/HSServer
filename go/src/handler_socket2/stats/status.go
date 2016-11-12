@@ -16,6 +16,15 @@ func GetStatus(available_actions []string, uptime int) map[string]string {
 	_requests := global_stats_requests
 	_req_time := global_stats_req_time
 	_req_time_full := global_stats_req_time_full
+
+	_stats := make([]stats, 0, len(stats_actions))
+	_stats_names := make([]string, 0, len(stats_actions))
+
+	for k, v := range stats_actions {
+		_stats = append(_stats, v.getAdjStats())
+		_stats_names = append(_stats_names, k)
+	}
+
 	stats_mutex.Unlock()
 
 	ret := map[string]string{}
@@ -36,19 +45,23 @@ func GetStatus(available_actions []string, uptime int) map[string]string {
 	var _bytes_generated uint64 = 0
 	var _bytes_received uint64 = 0
 	var _bytes_rec_uncompressed uint64 = 0
+	var _resp_b_skipped uint64 = 0
+	var _resp_skipped uint64 = 0
 
-	table_handlers := hscommon.NewTableGen("Handler", "Calls", "AVG Req Time", "AVG Roundtrip", "Send", "S-Compression", "Received", "R-Compression")
+	table_handlers := hscommon.NewTableGen("Handler", "Calls", "AVG Req Time", "AVG Roundtrip", "Send", "S-Compression", "Received", "R-Compression", "S-Skipped", "S-Skipped Bytes")
 	table_handlers.SetClass("tab")
 
 	handlers_added := make(map[string]bool)
 
-	stats_mutex.Lock()
-	for action_type, action_data := range stats_actions {
+	for k, action_data := range _stats {
+		action_type := _stats_names[k]
 
 		_bytes_received += action_data.b_request_compressed
 		_bytes_rec_uncompressed += action_data.b_request_size
 		_bytes_sent += action_data.b_resp_compressed
 		_bytes_generated += action_data.b_resp_size
+		_resp_b_skipped += action_data.resp_b_skipped
+		_resp_skipped += action_data.resp_skipped
 
 		_r_compr := ((action_data.b_request_size + 1) * 1000) / (action_data.b_request_compressed + 1)
 		_s_compr := ((action_data.b_resp_size + 1) * 1000) / (action_data.b_resp_compressed + 1)
@@ -58,22 +71,22 @@ func GetStatus(available_actions []string, uptime int) map[string]string {
 		table_handlers.AddRow(action_type, strconv.Itoa(int(action_data.requests)),
 			fmt.Sprintf("%.3fms", _rt), fmt.Sprintf("%.3fms", _rtf),
 			hscommon.FormatBytes(action_data.b_resp_compressed), fmt.Sprintf("%.1f%%", float64(_s_compr)/10),
-			hscommon.FormatBytes(action_data.b_request_compressed), fmt.Sprintf("%.1f%%", float64(_r_compr)/10))
+			hscommon.FormatBytes(action_data.b_request_compressed), fmt.Sprintf("%.1f%%", float64(_r_compr)/10),
+			fmt.Sprintf("%d", action_data.resp_skipped), hscommon.FormatBytes(action_data.resp_b_skipped))
 
 		handlers_added[action_type] = true
 	}
-	stats_mutex.Unlock()
 
 	for _, v := range available_actions {
 
 		if handlers_added[v] {
 			continue
 		}
-		table_handlers.AddRow(v, "-", "-", "-", "-", "-", "-", "-")
+		table_handlers.AddRow(v, "-", "-", "-", "-", "-", "-", "-", "-", "-")
 	}
 
 	if handlers_added["server-status"] != true {
-		table_handlers.AddRow("server-status", "-", "-", "-", "-", "-", "-", "-")
+		table_handlers.AddRow("server-status", "-", "-", "-", "-", "-", "-", "-", "-", "-")
 	}
 
 	ret["handlers_table"] = table_handlers.RenderSorted(0)
@@ -86,6 +99,10 @@ func GetStatus(available_actions []string, uptime int) map[string]string {
 	ret["_bytes_received"] = hscommon.FormatBytes(_bytes_received)
 	ret["_compression"] = fmt.Sprintf("%.1f%%", float64(_s_compr)/10)
 	ret["_receive_compression"] = fmt.Sprintf("%.1f%%", float64(_r_compr)/10)
+	ret["_resp_b_skipped"] = hscommon.FormatBytes(_resp_b_skipped)
+	ret["_resp_skipped"] = fmt.Sprintf("%d", _resp_skipped)
+
+	ret["_resp_count"] = fmt.Sprint(uint64(_requests) - uint64(_resp_skipped))
 	// <<
 
 	// #########################################################################
@@ -191,6 +208,10 @@ func GetStatus(available_actions []string, uptime int) map[string]string {
 	_r_compr = uint64(((last5.b_request_size + 1) * 1000) / (last5.b_request_compressed + 1))
 	ret["_compression_5s"] = fmt.Sprintf("%.1f%%", float64(_s_compr)/10)
 	ret["_receive_compression_5s"] = fmt.Sprintf("%.1f%%", float64(_r_compr)/10)
+
+	ret["_resp_b_skipped_5s"] = hscommon.FormatBytes(last5.resp_b_skipped)
+	ret["_resp_skipped_5s"] = fmt.Sprintf("%d", last5.resp_skipped)
+	ret["_resp_count_5s"] = fmt.Sprint(last5.requests - last5.resp_skipped)
 	// <<
 
 	return ret

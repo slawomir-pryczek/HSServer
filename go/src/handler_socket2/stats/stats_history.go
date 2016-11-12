@@ -18,11 +18,14 @@ type uh_struct struct {
 
 	b_resp_size       uint64
 	b_resp_compressed uint64
+
+	resp_skipped   uint64
+	resp_b_skipped uint64
 }
 
 var uptime_history [6]uh_struct
 
-func uh_add_unsafe(now int, connections, requests, errors, req_time, req_time_full, b_request_size, b_request_compressed, b_resp_size, b_resp_compressed uint64) {
+func uh_add_unsafe(now int, connections, requests, errors, req_time, req_time_full, b_request_size, b_request_compressed, b_resp_size, b_resp_compressed uint64, skip_response_sent bool) {
 
 	uh_now := &uptime_history[now%6]
 	if uh_now.timestamp != now {
@@ -38,6 +41,13 @@ func uh_add_unsafe(now int, connections, requests, errors, req_time, req_time_fu
 		uh_now.b_resp_size = b_resp_size
 		uh_now.b_resp_compressed = b_resp_compressed
 
+		if skip_response_sent {
+			uh_now.resp_skipped = requests
+			uh_now.resp_b_skipped = b_resp_compressed
+		} else {
+			uh_now.resp_skipped, uh_now.resp_b_skipped = 0, 0
+		}
+
 	} else {
 		uh_now.connections += connections
 		uh_now.requests += requests
@@ -49,6 +59,11 @@ func uh_add_unsafe(now int, connections, requests, errors, req_time, req_time_fu
 		uh_now.b_request_compressed += b_request_compressed
 		uh_now.b_resp_size += b_resp_size
 		uh_now.b_resp_compressed += b_resp_compressed
+
+		if skip_response_sent {
+			uh_now.resp_skipped += requests
+			uh_now.resp_b_skipped += b_resp_compressed
+		}
 	}
 
 }
@@ -80,6 +95,9 @@ func uh_get() uh_struct {
 			uh_now.b_request_compressed = 0
 			uh_now.b_resp_size = 0
 			uh_now.b_resp_compressed = 0
+
+			uh_now.resp_skipped = 0
+			uh_now.resp_b_skipped = 0
 			continue
 		}
 
@@ -91,8 +109,11 @@ func uh_get() uh_struct {
 
 		ret.b_request_size += uh_now.b_request_size
 		ret.b_request_compressed += uh_now.b_request_compressed
-		ret.b_resp_size += uh_now.b_resp_size
-		ret.b_resp_compressed += uh_now.b_resp_compressed
+		ret.b_resp_size += uh_now.b_resp_size - uh_now.resp_b_skipped
+		ret.b_resp_compressed += uh_now.b_resp_compressed - uh_now.resp_b_skipped
+
+		ret.resp_skipped += uh_now.resp_skipped
+		ret.resp_b_skipped += uh_now.resp_b_skipped
 	}
 	stats_mutex.Unlock()
 	return ret

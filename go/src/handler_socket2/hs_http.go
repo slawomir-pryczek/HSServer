@@ -38,7 +38,13 @@ func startServiceHTTP(bindTo string, handler handlerFunc) {
 		httpRequestStatus[_my_reqid] = _req_status
 		httpStatMutex.Unlock()
 
-		ret := []byte(handleRequest(CreateHSParamsFromMap(params)))
+		hsparams := CreateHSParamsFromMap(params)
+
+		ret := []byte(handleRequest(hsparams))
+		if hsparams.fastreturn != nil {
+			ret = hsparams.fastreturn
+		}
+
 		w.Header().Add("Server", version)
 		w.Header().Add("Content-type", "text/html")
 		w.Header().Add("Content-length", strconv.Itoa(len(ret)))
@@ -50,12 +56,15 @@ func startServiceHTTP(bindTo string, handler handlerFunc) {
 		httpStatMutex.Lock()
 		_req_status.status = "W"
 		httpStatMutex.Unlock()
+
 		w.Write(ret)
 
 		httpStatMutex.Lock()
 		_req_status.status = "F"
 		_req_status.end_time = time.Now().UnixNano()
 		httpStatMutex.Unlock()
+
+		hsparams.Cleanup()
 
 		go func(_my_reqid uint64) {
 			time.Sleep(5000 * time.Millisecond)

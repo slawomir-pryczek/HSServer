@@ -43,6 +43,28 @@ type stats struct {
 
 	b_resp_size       uint64
 	b_resp_compressed uint64
+
+	resp_skipped   uint64
+	resp_b_skipped uint64
+}
+
+func (this *stats) getAdjStats() stats {
+
+	ret := stats{}
+	ret.requests = this.requests
+	ret.req_time = this.req_time
+	ret.req_time_full = this.req_time_full
+
+	ret.b_request_size = this.b_request_size
+	ret.b_request_compressed = this.b_request_compressed
+
+	ret.b_resp_size = this.b_resp_size - this.resp_b_skipped
+	ret.b_resp_compressed = this.b_resp_compressed - this.resp_b_skipped
+
+	ret.resp_skipped = this.resp_skipped
+	ret.resp_b_skipped = this.resp_b_skipped
+
+	return ret
 }
 
 var stats_mutex sync.Mutex
@@ -85,7 +107,7 @@ func MakeConnection(remoteAddr string) *Connection {
 	conn_id := global_stats_connections
 	newconn.id = conn_id
 	status_connections[conn_id] = newconn
-	uh_add_unsafe(int(now_us/1000000000), 1, 0, 0, 0, 0, 0, 0, 0, 0)
+	uh_add_unsafe(int(now_us/1000000000), 1, 0, 0, 0, 0, 0, 0, 0, 0, false)
 	stats_mutex.Unlock()
 
 	return newconn
@@ -144,7 +166,7 @@ func (this *Connection) StateWriting(request_size, request_size_compressed, resp
 	return took
 }
 
-func (this *Connection) StateKeepalive(resp_compressed, took uint64) {
+func (this *Connection) StateKeepalive(resp_compressed, took uint64, skip_response_sent bool) {
 
 	now_us := time.Now().UnixNano()
 
@@ -163,8 +185,12 @@ func (this *Connection) StateKeepalive(resp_compressed, took uint64) {
 	this.status = "K"
 	_sa.b_resp_compressed += resp_compressed
 	_sa.req_time_full += _took_full
+	if skip_response_sent {
+		_sa.resp_b_skipped += this.response_size
+		_sa.resp_skipped++
+	}
 
-	uh_add_unsafe(int(now_us/1000000000), 0, 1, 0, took, _took_full, this.request_size, this.request_size_compressed, this.response_size, resp_compressed)
+	uh_add_unsafe(int(now_us/1000000000), 0, 1, 0, took, _took_full, this.request_size, this.request_size_compressed, this.response_size, resp_compressed, skip_response_sent)
 	stats_mutex.Unlock()
 
 }
@@ -174,7 +200,7 @@ func (this *Connection) Close(comment string, is_error bool) {
 	if is_error {
 		stats_mutex.Lock()
 		global_stats_errors++
-		uh_add_unsafe(common.TSNow(), 0, 0, 1, 0, 0, 0, 0, 0, 0)
+		uh_add_unsafe(common.TSNow(), 0, 0, 1, 0, 0, 0, 0, 0, 0, false)
 		stats_mutex.Unlock()
 	}
 

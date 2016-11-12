@@ -13,6 +13,8 @@ type HSParams struct {
 	porder     []string
 	fastreturn []byte
 
+	additional_resp_headers []string
+
 	allocator *byteslabs.Allocator
 }
 
@@ -96,6 +98,10 @@ func ReadHSParams(message []byte, out_params *HSParams) []byte {
 	return guid
 }
 
+func (p *HSParams) SetRespHeader(attr, val string) {
+	p.additional_resp_headers = append(p.additional_resp_headers, attr+":"+val+"\n")
+}
+
 func (p *HSParams) SetParam(attr string, val string) {
 	p.param[attr] = []byte(val)
 }
@@ -107,6 +113,17 @@ func (p *HSParams) GetParam(attr string, def string) string {
 	}
 
 	return def
+}
+
+func (p *HSParams) GetParamsS() map[string]string {
+
+	ret := make(map[string]string, len(p.param))
+	for k, v := range p.param {
+		ret[k] = string(v)
+	}
+
+	return ret
+
 }
 
 // this is not safe because it can use memory shared between requests, so we can't
@@ -145,6 +162,32 @@ func (p *HSParams) GetParamIA(attr string) []int {
 	return ret
 }
 
+func (p *HSParams) getParamInfoHTML() string {
+
+	_req_txt := ""
+
+	_conn_data := p.getParamInfo()
+	if len(_conn_data) > 60 {
+
+		_pos := 0
+		_conn_data_wbr := ""
+		for _pos < len(_conn_data) {
+			_end := _pos + 80
+			if _end > len(_conn_data) {
+				_end = len(_conn_data)
+			}
+			_conn_data_wbr += _conn_data[_pos:_end] + "<wbr>"
+			_pos += 80
+		}
+
+		_req_txt = "<span class='tooltip'>[...] " + _conn_data[0:60] + "<div>" + _conn_data_wbr + "</div></span>"
+	} else {
+		_req_txt = "<span>" + _conn_data + "</span>"
+	}
+
+	return _req_txt
+}
+
 func (p *HSParams) getParamInfo() string {
 
 	ret := ""
@@ -165,9 +208,28 @@ func (p *HSParams) getParamInfo() string {
 	return ret
 }
 
+func (p *HSParams) FastReturnBNocopy(set []byte) {
+
+	p.fastreturn = set
+}
+
 func (p *HSParams) FastReturnB(set []byte) {
 
+	// if the data is very short - don't use the allocator!
+	len_set := len(set)
+	if len_set < 64 || (p.allocator == nil && len_set < 128) {
+		ret := make([]byte, len_set, len_set)
+		copy(ret, set)
+		p.fastreturn = ret
+		return
+	}
+
+	if p.allocator == nil {
+		p.allocator = byteslabs.MakeAllocator()
+	}
+
 	b := p.allocator.Allocate(len(set))
+	b = b[0:cap(b):cap(b)]
 	copy(b, set)
 	p.fastreturn = b
 }
@@ -193,9 +255,10 @@ func (p *HSParams) Cleanup() {
 	if p.allocator != nil {
 		p.allocator.Release()
 		p.allocator = nil
-		p.fastreturn = nil
 	}
 
+	p.fastreturn = nil
 	p.param = make(map[string][]byte)
 	p.porder = make([]string, 0)
+	p.additional_resp_headers = make([]string, 0)
 }

@@ -108,6 +108,23 @@ func (this *cfg) GetB(attr string) bool {
 	return false
 }
 
+func (this *cfg) GetI(attr string, def int) int {
+
+	if !this.is_ready {
+		this.parse()
+	}
+
+	if _, ok := this.config[attr]; !ok {
+		return def
+	}
+
+	if ret, err := strconv.ParseInt(this.config[attr], 10, 64); err == nil {
+		return int(ret)
+	}
+
+	return def
+}
+
 func CfgIsDebug() bool {
 	return Config.debug
 }

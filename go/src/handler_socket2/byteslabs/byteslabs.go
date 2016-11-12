@@ -8,8 +8,8 @@ import (
 )
 
 const mem_chunks_count = 4
-const slab_size = 10000
-const slab_count = 64
+const slab_size = 30000
+const slab_count = 80
 
 const intpool_size = 100
 
@@ -52,7 +52,6 @@ func init() {
 	for k, _ := range mem_chunks {
 		mem_chunks[k] = &mem_chunk{memory: make([]byte, slab_size*slab_count)}
 	}
-
 }
 
 /*
