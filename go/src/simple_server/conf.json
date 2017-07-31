@@ -1,0 +1,7 @@
+{
+"BIND_TO":"127.0.0.1:7777,u127.0.0.1:7777,h127.0.0.1:80",
+"FORCE_START":true,
+"DEBUG":false,
+"VERBOSE":true,
+"RUN_SERVICES":"profile,echo"
+}
