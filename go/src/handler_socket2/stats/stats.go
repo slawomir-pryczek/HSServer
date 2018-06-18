@@ -2,7 +2,7 @@ package stats
 
 import (
 	"fmt"
-	"gocached/common"
+	"handler_socket2/hscommon"
 	"sync"
 	"time"
 )
@@ -200,7 +200,7 @@ func (this *Connection) Close(comment string, is_error bool) {
 	if is_error {
 		stats_mutex.Lock()
 		global_stats_errors++
-		uh_add_unsafe(common.TSNow(), 0, 0, 1, 0, 0, 0, 0, 0, 0, false)
+		uh_add_unsafe(hscommon.TSNow(), 0, 0, 1, 0, 0, 0, 0, 0, 0, false)
 		stats_mutex.Unlock()
 	}
 
