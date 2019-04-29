@@ -52,6 +52,13 @@ func startServiceHTTP(bindTo string, handler handlerFunc) {
 		w.Header().Add("Cache-Control", "no-cache, no-store, must-revalidate")
 		w.Header().Add("Pragma", "no-cache")
 		w.Header().Add("Expires", "0")
+		for _, v := range hsparams.additional_resp_headers {
+			_pos := strings.IndexByte(v, ':')
+			if _pos < 0 {
+				continue
+			}
+			w.Header().Add(v[0:_pos], v[_pos+1:])
+		}
 
 		httpStatMutex.Lock()
 		_req_status.status = "W"

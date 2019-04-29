@@ -20,9 +20,9 @@ import (
 	"time"
 )
 
-const version = "HSServer v3.001"
+const version = "HSServer v3.003"
 const compression_enable = true
-const compression_threshold = 1024 * 800 //450
+const compression_threshold = 1024 * 3000 //450
 
 var uptime_started int
 
@@ -387,12 +387,11 @@ func sendBack(conn *net.TCPConn, params *HSParams, data []byte, took int, guid [
 	resp += "Fingerprint: " + fingerprint + "\r\n"
 	*/
 
+	buffer.WriteString(fmt.Sprintf("Request 200 OK\r\nServer: %s\r\nContent-Type: text/html\r\nTook:%dµs\r\nGUID:%s\r\n",
+		version, took, guid))
 	for _, v := range params.additional_resp_headers {
 		buffer.WriteString(v)
 	}
-
-	buffer.WriteString(fmt.Sprintf("Request 200 OK\r\nServer: %s\r\nContent-Type: text/html\r\nTook:%dµs\r\nGUID:%s\r\n",
-		version, took, guid))
 
 	if compression_enable && (compression_threshold <= 0 || len(data) > compression_threshold) {
 

@@ -162,6 +162,18 @@ func (p *HSParams) GetParamIA(attr string) []int {
 	return ret
 }
 
+func (p *HSParams) GetParamI(attr string, def int) int {
+
+	_ps := p.param[attr]
+	if len(_ps) == 0 {
+		return def
+	}
+	if vi, err := strconv.Atoi(string(_ps)); err == nil {
+		return vi
+	}
+	return def
+}
+
 func (p *HSParams) getParamInfoHTML() string {
 
 	_req_txt := ""
