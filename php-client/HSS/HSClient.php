@@ -286,7 +286,7 @@ class HSClient
 						$v = explode(":", $v);
 						$_outkey = strtolower(trim($v[0]));
 						unset($v[0]);
-						$_outval = trim(implode(",", $v));
+						$_outval = trim(implode(":", $v));
 						$tmp[$_outkey] = $_outval;
 					}
 
