@@ -7,8 +7,8 @@ import (
 	"time"
 )
 
-const mem_chunks_count = 4
-const slab_size = 30000
+const mem_chunks_count = 6
+const slab_size = 40000
 const slab_count = 80
 
 const intpool_size = 100
@@ -126,17 +126,16 @@ func AA() {
 	fmt.Println("SSS")
 }*/
 
-var curr_mem_chunk = 0
+var curr_mem_chunk = uint32(0)
 
 func MakeAllocator() *Allocator {
 
-	mutex_slab.Lock()
-	curr_mem_chunk = (curr_mem_chunk + 1) % mem_chunks_count
-	mutex_slab.Unlock()
+	_mc := atomic.AddUint32(&curr_mem_chunk, 1)
+	_mc = _mc % mem_chunks_count
 
-	t1 := intpool.pop()
-	t2 := intpool.pop()
-	return &Allocator{mem_chunk: mem_chunks[curr_mem_chunk], slab_used: t1, slab_free_space: t2}
+	t1 := make([]int, 0, 5)
+	t2 := make([]int, 0, 5)
+	return &Allocator{mem_chunk: mem_chunks[_mc], slab_used: t1, slab_free_space: t2}
 }
 
 // NOTE: This will always use locking facilities provided by Allocate function!
@@ -163,11 +162,17 @@ func (this *Allocator) take_additional() {
 		}
 	}
 
+	t1 := make([]int, 0, 5)
+	t2 := make([]int, 0, 5)
 	this.addl_allocator = &Allocator{mem_chunk: mem_chunks[best_slab], is_additional: true,
-		slab_used: intpool.pop(), slab_free_space: intpool.pop()}
+		slab_used: t1, slab_free_space: t2}
 }
 
 func (this *Allocator) Release() {
+
+	if len(this.slab_used) == 0 && this.addl_allocator == nil {
+		return
+	}
 
 	mem_chunk := this.mem_chunk
 	mem_chunk.mu.Lock()
@@ -177,16 +182,12 @@ func (this *Allocator) Release() {
 	}
 
 	//fmt.Println("RELEASED", this.slab_used)
-	atomic.AddInt32(&this.mem_chunk.used_slab_count, int32(-len(this.slab_used)))
-
-	intpool.push(this.slab_free_space)
-	intpool.push(this.slab_used)
+	atomic.AddInt32(&mem_chunk.used_slab_count, int32(-len(this.slab_used)))
 	this.slab_free_space = []int{}
 	this.slab_used = []int{}
 
 	aa_release := this.addl_allocator
 	this.addl_allocator = nil
-
 	mem_chunk.mu.Unlock()
 
 	if aa_release != nil {
@@ -215,13 +216,13 @@ func (this *Allocator) _alloc(mc *mem_chunk, slab_num, slabs_needed, slab_free, 
 		slab_num++
 	}
 
-	return mc.memory[start_pos:start_pos : start_pos+size]
+	return mc.memory[start_pos : start_pos : start_pos+size]
 }
 
 func (this *Allocator) Allocate(size int) []byte {
 
-	if size == 0 {
-		return make([]byte, 0)
+	if size <= 96 {
+		return make([]byte, 0, size)
 	}
 
 	slab_free := (slab_size - (size % slab_size)) % slab_size
@@ -254,7 +255,7 @@ func (this *Allocator) Allocate(size int) []byte {
 			if this.is_additional {
 				mem_chunk.stat_routed_alloc++
 			}
-			return mem_chunk.memory[start_pos:start_pos : start_pos+size]
+			return mem_chunk.memory[start_pos : start_pos : start_pos+size]
 		}
 	}
 

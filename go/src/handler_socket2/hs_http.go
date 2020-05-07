@@ -13,7 +13,9 @@ import (
 func startServiceHTTP(bindTo string, handler handlerFunc) {
 
 	fmt.Printf("HTTP Service starting : %s\n", bindTo)
+	boundMutex.Lock()
 	boundTo = append(boundTo, "http://"+bindTo)
+	boundMutex.Unlock()
 
 	handle_hunc := func(w http.ResponseWriter, r *http.Request) {
 		req_len := 0
@@ -109,7 +111,7 @@ func GetStatusHTTP() string {
 
 		tmp := fmt.Sprintf("<div class='thread_list'><span>Num. %d</span> - <span>[%s]</span> <span>%s</span> <span>%s</span></div>", k, rs.status, took_str, rs.req)
 
-		scored_items[i] = hscommon.ScoredItems{tmp, int64(k)}
+		scored_items[i] = hscommon.ScoredItems{Item: tmp, Score: int64(k)}
 		i++
 	}
 

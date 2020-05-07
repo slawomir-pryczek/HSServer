@@ -148,6 +148,48 @@ func (this *tablegen) Render() string {
 	return "<table" + _class + ">\n<thead>" + this.header + "</thead>\n" + "<tbody>" + data + "</tbody>\n</table>"
 }
 
+func (this *tablegen) RenderHorizFlat(columns int) string {
+
+	ret := ""
+	_class := ""
+	if len(this.className) > 0 {
+		_class = " class='" + this.className + "'"
+	}
+
+	// do we have class
+	has_class := this._header_data[len(this._header_data)-1] == "_class"
+	if has_class {
+		this._header_data = this._header_data[0 : len(this._header_data)-1]
+	}
+
+	pos := 0
+	ret += "<table" + _class + ">"
+	for pos < len(this._row_data) {
+		for col_no, v := range this._header_data {
+
+			ret += "<tr><td>" + v + "</td>"
+			for i := pos; i < len(this._row_data) && i-pos < columns; i++ {
+
+				class := ""
+				if has_class && len(this._row_data[i]) >= len(this._header_data)+1 {
+					class = " class='" + this._row_data[i][len(this._header_data)] + "'"
+				}
+
+				if col_no >= len(this._row_data[i]) {
+					break
+				}
+
+				ret += "<td" + class + ">" + this._row_data[i][col_no] + "</td>"
+			}
+			ret += "</tr>"
+		}
+		pos += columns
+	}
+	ret += "</table>"
+
+	return ret
+}
+
 func (this *tablegen) RenderHoriz(columns int) string {
 
 	ret := ""

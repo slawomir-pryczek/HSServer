@@ -256,6 +256,13 @@ func (p *HSParams) FastReturnS(set string) {
 	p.fastreturn = buff.Bytes()
 }
 
+func (p *HSParams) GetAllocator() *byteslabs.Allocator {
+	if p.allocator == nil {
+		p.allocator = byteslabs.MakeAllocator()
+	}
+	return p.allocator
+}
+
 func (p *HSParams) Allocate(size int) []byte {
 	if p.allocator == nil {
 		p.allocator = byteslabs.MakeAllocator()

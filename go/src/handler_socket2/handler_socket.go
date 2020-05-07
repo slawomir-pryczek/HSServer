@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"handler_socket2/byteslabs"
+	"handler_socket2/compress"
 	"handler_socket2/hscommon"
 	"handler_socket2/oslimits"
 	"handler_socket2/stats"
@@ -21,14 +22,55 @@ import (
 )
 
 const version = "HSServer v3.003"
-const compression_enable = true
-const compression_threshold = 1024 * 3000 //450
 
 var uptime_started int
+
+var compressor_snappy *compress.Compressor = nil
+var compressor_flate *compress.Compressor = nil
 
 func init() {
 	oslimits.SetOpenFilesLimit(262144)
 	uptime_started = int(time.Now().UnixNano()/1000000000) - 1 // so we won't divide by 0
+
+	compression_support := Config.Get("COMPRESSION", "mp-flate")
+	if strings.Index(compression_support, "mp-flate") > -1 {
+		compressor_flate = compress.CreateCompressor(runtime.NumCPU(), compress.MakeFlate())
+	}
+	if strings.Index(compression_support, "mp-snappy") > -1 {
+		compressor_snappy = compress.CreateCompressor(runtime.NumCPU(), compress.MakeSnappy())
+	}
+
+	if compressor_flate == nil && compressor_snappy == nil {
+		fmt.Println("Multipart compression is disabled, use compression_support=[mp-flate,mp-snappy] to enable")
+	} else {
+		fmt.Println("Multipart compression is enabled")
+	}
+
+	_comp_status := func() (string, string) {
+
+		ret := "<pre>-- Simple Compress\n"
+		ret += compress.CompressSimpleStatus()
+		ret += "</pre>"
+		if compressor_flate == nil && compressor_snappy == nil {
+			return "Compression Plugins (multithreaded compression is disabled)", ret
+		}
+
+		ret += "<br><pre>-- Multipart Compress (multi threaded)\n"
+		ret += "Multipart compression is used to quickly set compressed data using internal framing format\n"
+		ret += "It is not compatible with standard compression schemas.\n\n"
+		ret += "E-RLow - error, compression ratio too low\tE-Buffer - error, compression buffer too small\n"
+		if compressor_flate != nil {
+			ret += compressor_flate.GetStatus()
+		}
+		if compressor_snappy != nil {
+			ret += compressor_snappy.GetStatus()
+		}
+		ret += "</pre>"
+
+		return "Compression Plugins", ret
+	}
+
+	StatusPluginRegister(_comp_status)
 }
 
 func GetStatus() map[string]string {
@@ -193,7 +235,6 @@ func serveSocket(conn *net.TCPConn, handler handlerFunc) {
 
 	conn.SetKeepAlive(true)
 	conn.SetNoDelay(true)
-	fmt.Println("In ServeSocket")
 
 	message := []byte{}
 	data_stream := []byte{}
@@ -201,9 +242,12 @@ func serveSocket(conn *net.TCPConn, handler handlerFunc) {
 	sharedmem := make([]byte, 1024*32)
 	t_start := int64(0)
 
+	// get configuration and some connection specific data, like compression we should use
+	conn_ex := make_conn_ex(conn)
+	fmt.Println("In ServeSocket <- ", conn.RemoteAddr(), "Network distance:", conn_ex.remote_distance, "Compression threshold:", conn_ex.compression_threshold)
+
 	params := CreateHSParams()
 	for {
-
 		n := 0
 
 		// we don't have new header yet, read next data packet
@@ -227,7 +271,6 @@ func serveSocket(conn *net.TCPConn, handler handlerFunc) {
 		}
 
 		if t_start == 0 {
-
 			t_start = newconn.StateReading()
 		}
 
@@ -325,7 +368,14 @@ func serveSocket(conn *net.TCPConn, handler handlerFunc) {
 			data_stream = []byte{}
 		}
 
-		tmp := handler(params)
+		tmp := ""
+		if action == "conn-ex" {
+			// special case, conn-ex handler is always available
+			handle_conn_ex(params, &conn_ex)
+		} else {
+			tmp = handler(params)
+		}
+
 		response := []byte(nil)
 		if len(tmp) > 2000 && params.fastreturn == nil {
 
@@ -360,7 +410,7 @@ func serveSocket(conn *net.TCPConn, handler handlerFunc) {
 
 		_sent_bytes := int(response_len)
 		if !skip_response_sent {
-			_sent_bytes = sendBack(conn, params, response, int(took), guid, sharedmem[:0])
+			_sent_bytes = sendBack(conn_ex, params, response, int(took), guid, sharedmem[:0])
 		}
 
 		// ##############################################################################
@@ -377,10 +427,11 @@ func serveSocket(conn *net.TCPConn, handler handlerFunc) {
 
 }
 
-func sendBack(conn *net.TCPConn, params *HSParams, data []byte, took int, guid []byte, sharedmem []byte) int {
+func sendBack(conn_ex conninfo, params *HSParams, data []byte, took int, guid []byte, sharedmem []byte) int {
+
+	conn := conn_ex.conn
 
 	buffer := bytes.NewBuffer(sharedmem)
-
 	/*h := sha1.New()
 	h.Write([]byte(data))
 	fingerprint := fmt.Sprintf("%x", h.Sum(nil))
@@ -393,51 +444,52 @@ func sendBack(conn *net.TCPConn, params *HSParams, data []byte, took int, guid [
 		buffer.WriteString(v)
 	}
 
-	if compression_enable && (compression_threshold <= 0 || len(data) > compression_threshold) {
+	if conn_ex.compression_threshold > 0 && len(data) > conn_ex.compression_threshold {
 
-		alloc := byteslabs.MakeAllocator()
+		// standard gzip compression, if we don't have multipart option enabled
+		if conn_ex.comp == nil {
+			compressed := compress.CompressSimple(data, params.GetAllocator())
+			buffer.WriteString("Content-Length: " + strconv.Itoa(len(compressed)) + "\r\n")
+			buffer.WriteString("Content-Encoding: gzip / " + strconv.Itoa(len(data)) + "\r\n\r\n")
 
-		/*
-			b := bytes.NewBuffer(alloc.Allocate(len(data) / 2))
-			w, _ := flate.NewWriter(b, 2)
-			w.Write(data)
-			w.Close()
-			compressed := b.Bytes()
-		*/
-		compressed := byteslabs.Compress(data, alloc)
-
-		buffer.WriteString("Content-Length: " + strconv.Itoa(len(compressed)) + "\r\n")
-		buffer.WriteString("Content-Encoding: gzip / " + strconv.Itoa(len(data)) + "\r\n\r\n")
-
-		blen := buffer.Len()
-		dlen := len(compressed)
-		if (blen + dlen + 10) < buffer.Cap() {
-			buffer.Write(compressed)
-			conn.Write(buffer.Bytes())
-		} else {
-			conn.Write(buffer.Bytes())
-			conn.Write(compressed)
+			blen := buffer.Len()
+			dlen := len(compressed)
+			if (blen + dlen + 10) < buffer.Cap() {
+				buffer.Write(compressed)
+				conn.Write(buffer.Bytes())
+			} else {
+				conn.Write(buffer.Bytes())
+				conn.Write(compressed)
+			}
+			return dlen
 		}
 
-		alloc.Release()
-		return dlen
-
-	} else {
-
-		buffer.WriteString("Content-Length: " + strconv.Itoa(len(data)) + "\r\n\r\n")
-
-		blen := buffer.Len()
-		dlen := len(data)
-		if (blen + dlen + 10) < buffer.Cap() {
-			buffer.Write(data)
+		// multipart compression using framework goes here
+		out_buffer := params.Allocate(len(data))
+		out_buffer = compressor_flate.Compress(data, out_buffer[0:cap(out_buffer)])
+		if out_buffer != nil {
+			compressor_id := conn_ex.comp.GetID()
+			buffer.WriteString("Content-Length: " + strconv.Itoa(len(out_buffer)) + "\r\n")
+			buffer.WriteString("Content-Encoding: " + compressor_id + " / " + strconv.Itoa(len(data)) + "\r\n\r\n")
 			conn.Write(buffer.Bytes())
-		} else {
-			conn.Write(buffer.Bytes())
-			conn.Write([]byte(data))
+			conn.Write(out_buffer)
+			return len(out_buffer)
 		}
-
-		return dlen
 	}
+
+	buffer.WriteString("Content-Length: " + strconv.Itoa(len(data)) + "\r\n\r\n")
+
+	blen := buffer.Len()
+	dlen := len(data)
+	if (blen + dlen + 10) < buffer.Cap() {
+		buffer.Write(data)
+		conn.Write(buffer.Bytes())
+	} else {
+		conn.Write(buffer.Bytes())
+		conn.Write([]byte(data))
+	}
+
+	return dlen
 
 }
 

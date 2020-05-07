@@ -40,6 +40,7 @@ func StatusPluginRegister(f StatusPlugin) {
 }
 
 var boundTo []string = []string{}
+var boundMutex sync.Mutex
 
 func StartServer(bind_to []string) {
 	var wg sync.WaitGroup
@@ -93,7 +94,9 @@ func startService(bindTo string, handler handlerFunc) {
 	}
 
 	fmt.Printf("Socket Service started : %s\n", bindTo)
+	boundMutex.Lock()
 	boundTo = append(boundTo, "socket:"+bindTo)
+	boundMutex.Unlock()
 
 	for {
 		conn, err := listener.AcceptTCP()

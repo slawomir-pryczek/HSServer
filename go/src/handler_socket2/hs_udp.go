@@ -11,6 +11,7 @@ import (
 )
 
 type udpRequest struct {
+	action     string
 	req        string
 	start_time int64
 	end_time   int64
@@ -52,9 +53,10 @@ func udpStatBeginRequest(rec_id string, request_no int) {
 	udpStatMutex.Unlock()
 }
 
-func udpStatRequest(rec_id, request string) {
+func udpStatRequest(rec_id, action string, request string) {
 	udpStatMutex.Lock()
 	if info, exists := udpStats[rec_id]; exists {
+		info.action = action
 		info.req = request
 		info.sub_requests_pending++
 		info.status = "P"
@@ -86,14 +88,20 @@ func udpStatFinishRequest(rec_id string, is_ok bool) {
 
 func GetStatusUDP() string {
 
-	udpStatMutex.Lock()
-	defer udpStatMutex.Unlock()
-
+	action_count := make(map[string]int)
 	time_now := time.Now().UnixNano()
 	ret := ""
-	for k, v := range udpStats {
-		tmp := "<div class='thread_list'>"
 
+	udpStatMutex.Lock()
+	for k, v := range udpStats {
+
+		_key := "<b>[" + v.status + "]</b> " + v.action
+		action_count[_key]++
+		if action_count[_key] >= 5 {
+			continue
+		}
+
+		tmp := "<div class='thread_list'>"
 		status := v.status
 		if status == "P" {
 			status = fmt.Sprintf("%s/%d", status, v.sub_requests_pending)
@@ -108,9 +116,16 @@ func GetStatusUDP() string {
 		tmp += "</div>\n"
 		ret += tmp
 	}
+	udpStatMutex.Unlock()
+
+	for action, count := range action_count {
+		count -= 5
+		if count > 0 {
+			ret += fmt.Sprintf("<div class='thread_list'><span> Aggr x%d:</span> %s</div>", count, action)
+		}
+	}
 
 	return ret
-
 }
 
 func startServiceUDP(bindTo string, handler handlerFunc) {
@@ -128,7 +143,9 @@ func startServiceUDP(bindTo string, handler handlerFunc) {
 	}
 
 	fmt.Printf("UDP Service started : %s\n", bindTo)
+	boundMutex.Lock()
 	boundTo = append(boundTo, "udp:"+bindTo)
+	boundMutex.Unlock()
 
 	req_no := 0
 	source_buffer := make(map[string][]byte)
@@ -291,7 +308,7 @@ func runRequestV2(key string, message_body []byte, is_compressed bool, handler h
 		return false
 	}
 
-	udpStatRequest(key, hsparams.getParamInfoHTML())
+	udpStatRequest(key, hsparams.GetParam("action", "?"), hsparams.getParamInfoHTML())
 	data := handler(hsparams)
 	if Config.debug {
 		fmt.Println(string(guid), ">>", data)

@@ -18,7 +18,6 @@ func GetStatus() (string, string) {
 	ret += "Routed Alloc - Allocations in routed slabs\n"
 	ret += ". - Slab is EMPTY; F - Slab is FULL\n"
 	ret += intpool.status() + "<br>"
-	ret += compress_status() + "<br>"
 	ret += "</pre>"
 
 	ret += "<style>"
@@ -63,32 +62,4 @@ func GetStatus() (string, string) {
 	}
 
 	return "Slab Allocator \\ QCompress", ret + tg.Render()
-}
-
-func compress_status() string {
-
-	ret := ""
-
-	mu.Lock()
-	defer mu.Unlock()
-
-	ret += fmt.Sprintf("\nFastCompress*: %d, SlowCompress**: %d    PreAllocated Compressors: %d\n",
-		fw_stat_compressors_reuse, fw_stat_compressors_created, max_compressors)
-	ret += "  * Compressors that are re-used without memory re-allocation, ** Compressors fully re-allocated\n"
-
-	_u := float64(fw_stat_underflows_b) / float64(fw_stat_underflows)
-	_o := float64(fw_stat_overflows_b) / float64(fw_stat_overflows)
-	if fw_stat_underflows == 0 {
-		_u = 0
-	}
-	if fw_stat_overflows == 0 {
-		_o = 0
-	}
-	ret += fmt.Sprintf("Buffer Predictions - Underflows: %d / %.1fKB Underflow Per Request\n", fw_stat_underflows, _u/float64(1024.0))
-	ret += fmt.Sprintf("Buffer Predictions - Overflows: %d / %.1fKB Overflow Per Request\n", fw_stat_overflows, _o/float64(1024.0))
-	ret += "     Underflows mean that we allocated too large buffer from SLAB, this is normal situation.\n"
-	ret += "     Overflow means that we needed to re-allocate compression buffer because there was too little space\n"
-
-	return ret
-
 }

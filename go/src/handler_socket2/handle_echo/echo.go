@@ -3,6 +3,7 @@ package handle_echo
 import (
 	"encoding/json"
 	"handler_socket2"
+	"strings"
 )
 
 type HandleEcho struct {
@@ -27,8 +28,25 @@ func (this *HandleEcho) GetActions() []string {
 func (this *HandleEcho) HandleAction(action string, data *handler_socket2.HSParams) string {
 
 	ret := map[string]string{}
-	ret["data"] = data.GetParam("data", "")
-	_tmp, _ := json.Marshal(ret)
 
-	return string(_tmp)
+	in := data.GetParam("data", "")
+	repeat := data.GetParamI("repeat", 1)
+	if repeat < 1 {
+		repeat = 1
+		ret["warning"] = "Repeat must be at least 1"
+	}
+	if repeat > 500 {
+		repeat = 500
+		ret["warning"] = "Repeat must be at most 500"
+	}
+
+	if repeat > 1 {
+		ret["data"] = strings.Repeat(in, repeat)
+	} else {
+		ret["data"] = in
+	}
+
+	_tmp, _ := json.Marshal(ret)
+	data.FastReturnBNocopy(_tmp)
+	return ""
 }

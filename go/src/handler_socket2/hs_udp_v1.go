@@ -52,8 +52,6 @@ func runRequest(key string, message_body []byte, is_compressed bool, handler han
 	}
 	// <<
 
-	udpStatRequest(key, _req_txt)
-
 	// process packet - parameters
 	params, _ := url.ParseQuery(curr_msg)
 	fmt.Print(params)
@@ -63,6 +61,8 @@ func runRequest(key string, message_body []byte, is_compressed bool, handler han
 		params2[_k] = implode(",", _v)
 	}
 	// <<
+
+	udpStatRequest(key, params2["action"], _req_txt)
 
 	data := ""
 	action := ""

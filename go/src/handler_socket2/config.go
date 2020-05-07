@@ -17,7 +17,8 @@ type cfg struct {
 	config   map[string]string
 	mu       sync.Mutex
 
-	debug, verbose bool
+	debug, verbose   bool
+	local_interfaces []string
 }
 
 func (this *cfg) parse() {
@@ -76,35 +77,78 @@ func (this *cfg) parse() {
 	this.verbose = this.config["VERBOSE"] == "1"
 
 	//----
-
-	// add more interfaces based on what is currently available
-	ip_ifaces_uniq := make(map[string]bool)
-	bind_to_ip := strings.Split(this.config["BIND_TO"], ",")
-	for k, v := range bind_to_ip {
-		v = strings.Trim(v, "\r\n\t ")
-		if ip_ifaces_uniq[v] {
-			continue
+	// Get all local interfaces
+	_ifs := make(map[string]bool)
+	_append_local_interfaces := func(interfaces string) {
+		if len(interfaces) == 0 {
+			return
 		}
-		bind_to_ip[k] = v
-		ip_ifaces_uniq[v] = true
+		for _, v := range strings.Split(interfaces, ",") {
+			v = strings.Trim(v, "\r\n\t uh")
+			if len(v) == 0 {
+				return
+			}
+			v = strings.Split(v, ":")[0]
+			if len(v) == 0 {
+				return
+			}
+			_ifs[v] = true
+		}
 	}
 
-	for _, iface_match := range getMatchInterfaces() {
+	all_interfaces := getMatchInterfaces()
+	for _, v := range all_interfaces {
+		_append_local_interfaces(v)
+	}
+	_append_local_interfaces(this.config["LOCAL_IP"])
 
-		_key := "BIND_TO_" + iface_match
-		if v, exists := this.config[_key]; exists {
+	fmt.Println(" --- Conditional config:")
+	_do_conditional := func(param string) string {
+		ret := make([]string, 0)
+		ret_uniq := make(map[string]bool)
+		_add := func(v string) {
+			v = strings.Trim(v, "\r\n\t ")
+			if ret_uniq[v] {
+				return
+			}
+			ret_uniq[v] = true
+			ret = append(ret, v)
+		}
 
-			vv := strings.Split(v, ",")
-			fmt.Println("Conditional bind", _key, "adding -", vv)
+		for _, v := range strings.Split(this.config[param], ",") {
+			_add(v)
+		}
 
-			for _, vvv := range vv {
-				vvv = strings.Trim(vvv, "\r\n\t ")
-				if ip_ifaces_uniq[vvv] {
-					continue
+		for _, iface_match := range all_interfaces {
+
+			_key := param + "_" + iface_match
+			if v, exists := this.config[_key]; exists {
+				vv := strings.Split(v, ",")
+				fmt.Println(" ▶ Conditional config", _key, "adding -", vv)
+				for _, vvv := range vv {
+					_add(vvv)
 				}
-				bind_to_ip = append(bind_to_ip, vvv)
+
+				if strings.Compare("LOCAL_IP", param) == 0 {
+					_append_local_interfaces(this.config[_key])
+				}
 			}
 		}
+
+		return strings.Join(ret, ",")
+	}
+
+	for k := range this.config {
+		this.config[k] = _do_conditional(k)
+	}
+	for _, force_key := range []string{"LOCAL_IP", "BIND_TO", "RUN_SERVICES", "SLAVE", "REPLICATION_MODE"} {
+		if _, exists := this.config[force_key]; !exists {
+			_do_conditional(force_key)
+		}
+	}
+
+	for k := range _ifs {
+		this.local_interfaces = append(this.local_interfaces, k)
 	}
 
 	this.is_ready = true
@@ -112,12 +156,26 @@ func (this *cfg) parse() {
 	return
 }
 
-func (this *cfg) Get(attr, def string) string {
+func (this *cfg) GetIPDistance(remote_addr string) byte {
+	this.parse()
 
-	if !this.is_ready {
-		this.parse()
+	is_local := false
+	for _, ip := range this.local_interfaces {
+		if strings.Compare(ip, remote_addr) == 0 {
+			is_local = true
+			break
+		}
 	}
 
+	if is_local {
+		return 0
+	}
+	return 1
+}
+
+func (this *cfg) Get(attr, def string) string {
+
+	this.parse()
 	if val, ok := this.config[attr]; ok {
 		return val
 	}
@@ -127,10 +185,7 @@ func (this *cfg) Get(attr, def string) string {
 
 func (this *cfg) GetB(attr string) bool {
 
-	if !this.is_ready {
-		this.parse()
-	}
-
+	this.parse()
 	if val, ok := this.config[attr]; ok && val == "1" {
 		return true
 	}
@@ -140,10 +195,7 @@ func (this *cfg) GetB(attr string) bool {
 
 func (this *cfg) GetI(attr string, def int) int {
 
-	if !this.is_ready {
-		this.parse()
-	}
-
+	this.parse()
 	if _, ok := this.config[attr]; !ok {
 		return def
 	}
