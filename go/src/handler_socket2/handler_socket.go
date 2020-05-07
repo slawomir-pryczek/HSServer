@@ -21,7 +21,7 @@ import (
 	"time"
 )
 
-const version = "HSServer v3.003"
+const version = "HSServer v4"
 
 var uptime_started int
 
