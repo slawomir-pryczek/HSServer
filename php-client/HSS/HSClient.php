@@ -7,6 +7,9 @@ require_once __DIR__."/HSCommon.php";
 
 class HSClient
 {
+	private static $header_terminator = "\r\n\r\n";
+	private static $header_terminator_len = 4;
+	
 	private $_Socket = false;
 	private $conn_key = false;
 	
@@ -25,7 +28,19 @@ class HSClient
 		$this->port = $port;
 		$this->conn_key = "{$this->host}:{$this->port}";
 		$this->opt_connect_timeout = $connect_timeout;
-		$this->_connect();
+		
+		// connect and initialize client, if client initialization failed it means something is wrong
+		// and we need to connect and initialize again (try it twice)
+		if ($this->_connect())
+		{
+			if (!$this->initializeClient())
+			{
+				$this->_disconnect();
+				if ($this->_connect())
+					$this->initializeClient();
+			}
+		}
+		
 		self::$all_clients[] = $this;
 	}
 
@@ -86,8 +101,26 @@ class HSClient
 			unset(self::$conn_props[$this->conn_key]);
 		}
 		
-		$this->_connect();
+		// connect and initialize client, if client initialization failed it means something is wrong
+		// and we need to connect and initialize again (try it twice)
+		if ($this->_connect())
+		{
+			if (!$this->initializeClient())
+			{
+				// close socket if it failed to initialize
+				if ($this->_Socket !== false)
+				{
+					if (isset(self::$conn_props[$this->conn_key]))
+						unset(self::$conn_props[$this->conn_key]);
+					@fclose($this->_Socket);
+				}	
+				
+				$this->_connect();
+				$this->initializeClient();
+			}
+		}
 		
+		// override reference counter
 		if ($references > 0)
 			self::$conn_props[$this->conn_key]['referenced'] = $references;
 		
@@ -142,6 +175,109 @@ class HSClient
 			return false;
 		
 		return $ret;
+	}
+	
+	/*
+	 * Send one time initialization, on-connect so the server knows client properties
+	 */
+	private function initializeClient()
+	{
+		if ($this->_Socket === false)
+			return false;
+		if (ftell($this->_Socket) > 0)
+			return true;
+		
+		// Send initialization packet
+		$data = [];
+		if (function_exists('snappy_uncompress'))
+			$data['features'] = 'snappy';
+		
+		if (count($data) == 0)
+			return true;
+		$data['action'] = 'conn-ex';
+				
+		$mt = microtime(false);
+		$mt = explode(" ", $mt);
+		$guid = "conn".getmypid().'|'.substr($mt[0], 2, 6).'|'.substr($mt[1], -3);
+
+		$head = 'b';
+		$raw_data = [pack("v", strlen($guid)), $guid];
+		foreach ($data as $k=>$v)
+		{
+			$raw_data[] = pack("vV", strlen($k), strlen($v));
+			$raw_data[] = $k;
+			$raw_data[] = $v;
+		}
+		$raw_data = implode("", $raw_data);
+		$data_size = strlen($raw_data) + 1 + 4;	// head + content length
+		$raw_data = $head.pack("V", $data_size).$raw_data;
+		
+		stream_set_timeout($this->_Socket, 3);
+		$pos = 0;
+		while ($pos < strlen($raw_data))
+		{
+			if ($pos > 0)
+				$res = @fwrite($this->_Socket, substr($raw_data, $pos));
+			else
+				$res = @fwrite($this->_Socket, $raw_data);
+			if ($res === false || $res === 0)
+				return false;
+			$pos += $res;
+		}
+
+		// Read response
+		$ret = "";
+		$content_length = false;
+		$buffer_len = 4096;
+		$header = false;
+		while ($content_length === false || strlen($ret) < $content_length)
+		{
+			$_r = fread($this->_Socket, $buffer_len);
+			if (strlen($_r) == 0)
+			{
+				if (strlen($ret) > 4096)
+					$ret = substr($ret, 0, 4096).'...';
+				error_log("websockets init error: request ... ".$ret);
+				return false;
+			}
+			$ret .= $_r;
+
+			if ($header === false)
+			{
+				$header = strpos($ret, self::$header_terminator);
+				if ($header !== false)
+				{
+					// simplified header processing
+					$tmp = [];
+					foreach (explode("\n", substr($ret, 0, $header)) as $v)
+					{
+						$v = explode(":", $v);
+						if (count($v) <= 1)
+							continue;
+						$tmp[strtolower($v[0])] = trim($v[1]);
+					}
+					$ret = substr($ret, $header + self::$header_terminator_len);
+					
+					$header = $tmp;
+					$content_length = intval($header['content-length']);
+				}
+			}
+			
+			// if we're reaching end of data - get exactly X bytes to prevent blocking!
+			// otherwise PHP will lock waiting for data
+			$buffer_len = min($buffer_len, $content_length - strlen($ret));
+
+			if ($buffer_len == 0)
+				break;
+		}
+		
+		if (strcasecmp($header['guid'] ?? "", $guid) != 0)
+			return false;
+
+		// we got correct response, so mark connection as SAFE, so we can use it to just send data, without waiting 
+		// for the response!
+		self::$conn_props[$this->conn_key]['safe'] = true;
+		return true;
 	}
 	
 	// send data to golang server, and receives response
@@ -328,12 +464,76 @@ class HSClient
 		}
 
 		// compression support
-		if (isset($header['content-encoding']) && strpos($header['content-encoding'], 'gzip') !== false)
-			$ret = gzinflate($ret);
+		if (isset($header['content-encoding']))
+		{
+			if (strpos($header['content-encoding'], 'gzip') !== false)
+				$ret = gzinflate($ret);
+
+			if (strpos($header['content-encoding'], 'mp-snappy') !== false)
+			{
+				$ret = $this->_decompress_multipart($ret, function($d) {
+					try
+					{
+						$d = snappy_uncompress($d);
+						return $d;
+					}
+					catch (Exception $e)
+					{	return false;	}
+					return false;
+				});
+			}
+
+			if (strpos($header['content-encoding'], 'mp-flate') !== false)
+			{
+				$ret = $this->_decompress_multipart($ret, function($d) {
+					try
+					{
+						$d = gzinflate($d);
+						return $d;
+					}
+					catch (Exception $e)
+					{	return false;	}
+					return false;
+				});
+			}
+		}
 
 		// we got correct response, so mark connection as SAFE, so we can use it to just send data, without waiting 
 		// for the response!
 		self::$conn_props[$this->conn_key]['safe'] = true;
 		return $ret;
 	}
+
+	private function _decompress_multipart($data, $decompress_fn)
+	{
+		$chunks = [];
+		$i=0;
+		while ($i < strlen($data))
+		{
+			$_tmp = unpack("V", substr($data, $i, 4))[1];
+			$i+=4;
+			if ($_tmp == 0)
+				break;
+			$chunks[] = $_tmp;
+		}
+
+		$out = [];
+		$chunk_no = 0;
+		while ($i < strlen($data) && $chunk_no < count($chunks))
+		{
+			$len = $chunks[$chunk_no];
+			$_tmp = $decompress_fn(substr($data, $i, $len));
+			if ($_tmp === false)
+			{
+				error_log("Error decompressing data in HSClient");
+				return false;
+			}	
+			$out[] = $_tmp;
+			$i += $len;
+			$chunk_no++;
+		}
+
+		return implode("", $out);
+	}
 }
+
