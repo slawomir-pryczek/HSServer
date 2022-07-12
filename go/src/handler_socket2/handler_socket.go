@@ -49,7 +49,20 @@ func init() {
 
 	_comp_status := func() (string, string) {
 
-		ret := "<pre>-- Simple Compress\n"
+		ret := "<pre>"
+
+		_thr := Config().GetCompressionThreshold()
+		_compression_info := " Compression is currently <b>disabled</b>, you can enable per connection compression using conn-ex"
+		if _thr > 0 {
+			_compression_info = fmt.Sprintf(" Threshold (bytes): <b>%d</b>", _thr)
+		}
+		ret += "--Compression will make response payload shorter.\n"
+		ret += " Compression can make CPU usage a lot higher on both client and server side.\n"
+		ret += " It's not supported for HTTP protocol. Use with caution!\n"
+		ret += _compression_info
+		ret += "\n\n"
+
+		ret += "-- Simple Compress\n"
 		ret += compress.CompressSimpleStatus()
 		ret += "</pre>"
 		if compressor_flate == nil && compressor_snappy == nil {

@@ -27,7 +27,7 @@ func make_conn_ex(conn *net.TCPConn) conninfo {
 		if compressor_flate != nil {
 			conn_ex.comp = compressor_flate
 		}
-		conn_ex.compression_threshold = Config().GetI("compression_threshold", DEFAULT_COMPRESSION_THRESHOLD)
+		conn_ex.compression_threshold = Config().GetI("COMPRESSION_THRESHOLD", DEFAULT_COMPRESSION_THRESHOLD)
 	}
 
 	if conn_ex.compression_threshold == 0 {
