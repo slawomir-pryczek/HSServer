@@ -1,0 +1,608 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html lang="en">
+<head>
+    <title>Server Status</title>
+	<meta http-equiv="Content-Type" content="text/html;charset=UTF-8">
+</head>
+<body>
+
+<style>
+*
+{
+	font-family: arial;
+}
+body
+{
+	font-size: 12px;
+	min-width: 800px;
+}
+
+h1, h2, h3
+{
+	font-size: 18px;
+	color: #AAAAFF;
+}
+h2
+{
+	font-size: 16px;
+}
+h3
+{
+	font-size: 15px;
+}
+pre 
+{
+	margin: 0px;
+	font-family: monospace;
+}
+
+.container
+{
+	border-radius: 0px 0px 10px 10px;
+	-moz-border-radius: 0px 0px 10px 10px;
+	-webkit-border-radius: 0px 0px 10px 10px;
+	border: 3px solid #BBBBBB;
+	margin-bottom: 15px;
+}
+
+h1
+{
+	-webkit-box-shadow: inset 0px -15px 6px -10px rgba(0,0,0,0.24);
+	-moz-box-shadow: inset 0px -15px 6px -10px rgba(0,0,0,0.24);
+	box-shadow: inset 0px -15px 6px -10px rgba(0,0,0,0.24);
+	background: #AAAAAA;
+	padding: 5px 5px;
+	padding-bottom: 10px;
+	margin: 0px;
+	
+	color: white;
+}
+
+h1 i
+{
+	display: block;
+	color: #DDDDDD;
+	font-size: 10px;
+}
+
+table.main
+{
+	color: #666666;
+	margin: auto;
+}
+
+table.main thead
+{
+	color: #333333;
+}
+
+table.main tr td:nth-child(odd)
+{
+	border-left: 7px solid white;
+	
+	color: #AAAAAA!important;
+	background: #EEEEEE;
+}
+
+table.main tr td:nth-child(even)
+{
+	background: #e1ffff; /* Old browsers */
+	background: -moz-linear-gradient(top, #e1ffff 0%, #e1ffff 7%, #e1ffff 12%, #fdffff 12%, #e6f8fd 30%, #c8eefb 54%, #bee4f8 75%, #b1d8f5 100%); /* FF3.6+ */
+	background: -webkit-gradient(linear, left top, left bottom, color-stop(0%,#e1ffff), color-stop(7%,#e1ffff), color-stop(12%,#e1ffff), color-stop(12%,#fdffff), color-stop(30%,#e6f8fd), color-stop(54%,#c8eefb), color-stop(75%,#bee4f8), color-stop(100%,#b1d8f5)); /* Chrome,Safari4+ */
+	background: -webkit-linear-gradient(top, #e1ffff 0%,#e1ffff 7%,#e1ffff 12%,#fdffff 12%,#e6f8fd 30%,#c8eefb 54%,#bee4f8 75%,#b1d8f5 100%); /* Chrome10+,Safari5.1+ */
+	background: -o-linear-gradient(top, #e1ffff 0%,#e1ffff 7%,#e1ffff 12%,#fdffff 12%,#e6f8fd 30%,#c8eefb 54%,#bee4f8 75%,#b1d8f5 100%); /* Opera 11.10+ */
+	background: -ms-linear-gradient(top, #e1ffff 0%,#e1ffff 7%,#e1ffff 12%,#fdffff 12%,#e6f8fd 30%,#c8eefb 54%,#bee4f8 75%,#b1d8f5 100%); /* IE10+ */
+	background: linear-gradient(to bottom, #e1ffff 0%,#e1ffff 7%,#e1ffff 12%,#fdffff 12%,#e6f8fd 30%,#c8eefb 54%,#bee4f8 75%,#b1d8f5 100%); /* W3C */
+	filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='#e1ffff', endColorstr='#b1d8f5',GradientType=0 ); /* IE6-9 */
+}
+
+table.main tr td
+{
+	padding: 5px;
+	min-width: 40px;
+}
+
+.clear
+{
+	height: 1px;
+	overflow: hidden;
+	float: none;
+	clear: both;
+}
+
+.threads
+{
+	font-size: 14px;
+	font-family: monospace;
+	padding: 10px;
+}
+
+
+.tab
+{
+	color: #666666;
+}
+
+.tab tr
+{
+	color: #777777;
+	background: #EEEEEE;
+}
+
+.tab thead tr
+{
+	font-weight: bold;
+}
+
+.tab tr td
+{
+	padding: 5px;
+}
+
+.thread_list
+{
+    padding-top: 5px;
+	padding-left: 10px;
+}
+
+.thread_list span:nth-child(1)
+{ 
+    color: #888888;
+}
+.thread_list span:nth-child(2)
+{
+	font-weight: bold;
+}
+
+.tooltip
+{
+	cursor: default;
+	position: relative;
+}
+
+.tooltip div
+{
+	display: none;
+	color: black;
+}
+
+.tooltip.sel
+{
+	background: black;
+	color: white;
+}
+
+.tooltip:hover div, .tooltip.sel div
+{
+	display: block;
+	position: absolute;
+	background: white;
+	opacity: 0.9;
+	
+	padding: 10px;
+	border: 2px solid #DDDDDD;
+	
+	left: 20px;
+	z-index: 900
+}
+
+td img, td
+{
+	vertical-align: middle!important;
+}
+
+td img
+{
+	opacity: 0.7;
+	cursor: pointer;
+	float: right;
+}
+
+td img:hover
+{
+	opacity: 1;
+}
+
+.dnone
+{
+	display: none;
+}
+
+.act
+{
+	-webkit-transform: rotate(180deg);
+    -moz-transform: rotate(180deg);
+    -o-transform: rotate(180deg);
+    -ms-transform: rotate(180deg);
+    transform: rotate(180deg);
+}
+
+.slabstats td:nth-child(2)
+{
+	text-align: center;
+	font-weight: bold;
+}
+.slabstats td:nth-child(8)
+{
+	text-align: center;
+	background: #DDDDDD;
+	color: #333333;
+}
+.slabstats td:nth-child(9)
+{
+	background: #DDFFDD;
+	color: #007700;
+}
+.slabstats td:nth-child(10)
+{
+	background: #FFFFDD;
+	color: #777700;
+}
+.slabstats td:nth-child(11)
+{
+	background: #ffd778;
+	color: #e36300;
+}
+.slabstats td:nth-child(12)
+{
+	background: #FFAAAA;
+	color: #440000;
+}
+.slabstats td:nth-child(13)
+{
+	background: #882222;
+	color: #FFAAAA;
+}
+.slabstats td:nth-child(14)
+{
+	text-align: center;
+}
+.slabstats td:nth-child(15) .tooltip div,
+.slabstats td:nth-child(16) .tooltip div,
+.slabstats td:nth-child(17) .tooltip div {
+	left: -300px;
+	width: 300px;
+}
+	
+.htstaus span
+{
+	font-family: "Courier New", monospace;
+	font-weight: bold;
+}
+
+.htstaus .ht1
+{
+	color: #7777FF;
+}
+.htstaus .ht2
+{
+	color: #339933;
+}
+.htstaus .ht3
+{
+	color: #339933;
+}
+.htstaus .ht4
+{
+	color: #339933;
+}
+.htstaus .ht5
+{
+	color: red;
+	background: #cccccc;
+}
+.htstaus .ht6
+{
+	color: green;
+	background: #cccccc;
+}
+
+
+.httab td:nth-child(8)
+{
+	background: #ddffdd;
+	color: #007700;
+	padding-left: 10px;
+	padding-right: 10px;
+}
+.httab td:nth-child(9)
+{
+	background: #ffffdd;
+	color: #777700;
+}
+
+.s1 {color: #33cc44; padding: 2px 4px;}
+.s2	{color: #6666ee; padding: 2px 4px;}
+.s3 {color: #ee4444; padding: 2px 4px;}
+.s4 {color: #cc2222; background: #ffffff; padding: 2px 4px;}
+.cs1 {background: #ddffdd; color: #007700;}
+.cs2 {background: #ccccff; color: #6666ee;}
+.cs3 {background: #ffcccc; color: #ee4444;}
+.cs4 {background: #ffaaaa; color: #cc2222;}
+
+.replicas td:nth-child(8) {
+	background: #ddffdd; color: #007700;
+}
+
+.replicas td:nth-child(9) {
+	background: #ffcccc; color: #ee4444;
+}
+
+.replicas td:nth-child(2), .replicas td:nth-child(3) {
+	color: #6666ee; padding: 2px 4px; font-weight: bold; background: #ccccff;
+}
+
+.running {
+	background-image: url('data:image/gif;base64,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');
+	background-size: 14px 14px;
+	background-position: 100% 50%;
+	padding-right: 20px;
+	background-repeat: no-repeat;
+}
+
+table.compressing
+{
+	font-size: 12px;
+	padding: 10px;
+}
+table.compressing tr:nth-child(even)
+{
+	font-size: 11px;
+}
+table.compressing .running
+{
+	background: #EEFFEE!important;
+}
+</style>
+
+<div class='container'>
+<h1>Server Status<i>##_version##, Listening on: ##_bound_to##</i></h1>
+	<table class='main' style='float: right;'>
+		<thead>
+			<tr>
+				<td colspan='4'>Server Uptime: ##uptime##</td>
+			</tr>
+		</thead>
+
+		<tbody>
+			<tr>
+				<td>Connections made</td><td>##_connections##</td>
+			</tr>
+			<tr>
+				<td>Requests</td><td>##_requests##</td>
+				<td>Errors</td><td>##_errors##</td>
+			</tr>
+			<tr>
+				<td>Avg. Req. Time</td><td>##_req_time##</td>
+				<td>Avg. Roundtrip</td><td>##_req_time_full##</td>
+			</tr>
+			<tr>
+				<td>Bytes Sent</td><td>##_bytes_sent##</td>
+				<td>S-Compression</td><td>##_compression##</td>
+			</tr>
+			<tr>
+				<td>Bytes Received</td><td>##_bytes_received##</td>
+				<td>R-Compression</td><td>##_receive_compression##</td>
+			</tr>
+		</tbody>
+			
+		<thead>
+			<tr>
+				<td colspan='4'>Last 5 seconds</td>
+			</tr>
+		</thead>
+		<tbody>
+			<tr>
+				<td>Connections made/s</td><td>##_connections_5s##</td>
+			</tr>
+			<tr>
+				<td>Requests/s</td><td>##_requests_5s##</td>
+				<td>Errors/s</td><td>##_errors_5s##</td>
+			</tr>
+			<tr>
+				<td>Avg. Req. Time</td><td>##_req_time_5s##</td>
+				<td>Avg. Roundtrip</td><td>##_req_time_full_5s##</td>
+			</tr>
+			<tr>
+				<td>Sent/s</td><td>##_bytes_sent_5s##</td>
+				<td>S-Compression</td><td>##_compression_5s##</td>
+			</tr>
+			<tr>
+				<td>Received/s</td><td>##_bytes_received_5s##</td>
+				<td>R-Compression</td><td>##_receive_compression_5s##</td>
+			</tr>
+		</tbody>
+		
+		
+		<thead>
+			<tr>
+				<td id='tabletoggle_td' colspan='4'>Averages (per second) <img id='tabletoggle' alt="" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAcxJREFUeNqkU01LW0EUPZP3kac0ghg3gkgsgtBif4KIezeuBHcqRKhUkBQqdOEmFmIXXXQhCN10J4GA4A9w50IkgguJGtSWEpss8jWvL8nL895JJyBdxOLAeTP3zj3nzp07TwRBgOcMczlZhBBinpAiO/YETp6SJgjpvc0oTM/7w85UYnE4NjUR7sk+y3mx1PffnCytTlCr1XiOvX45glar1VPg1bgJ4nRPalYqZbXwff9JAoZhQHOUQLVa6Qo0m83uBq/rdQkpJRqNBu13xCORCDRHCXAQj3a7rUTWkln8vHfxZWMUukPvdm4RHTTxcYnLbENzeIQ8rwkGB7uuhw8rk7j7VUc8eQXTtLG6fY0fBRdbb98oWwgDmqMEgiAEhpQeKTdgwcPB12kUSj7m1s/VzDb7LcuhO7ChOUrAMNjpUM0BBdiw7TD6LB+HuzPKzzPb7GfwKTRH3YFtv+gohSwSMLq1WYST/Vm6cZdWzqNOaI4ScJyBv+0JU32Pn7WUAWV0/mml5qjEl0dxduRPL1oUbPVENuereOapE5QLx0OlfGbn07eF9xD1sZ4vKfBvivnMZ+aRVRL06ef3wVX8x0/oE6rUeime+zs/CDAA4pvUMT+4VjEAAAAASUVORK5CYII="></td>
+			</tr>
+		</thead>
+		<tbody id='tabletoggle_dest' class='dnone'>
+			<tr>
+				<td>Connections made</td><td>##_connections_s##</td>
+			</tr>
+			<tr>
+				<td>Requests</td><td>##_requests_s##</td>
+				<td>Errors</td><td>##_errors_s##</td>
+			</tr>
+			<tr>
+				<td>Sent</td><td>##_bytes_sent_s##</td>
+			</tr>
+			<tr>
+				<td>Received</td><td>##_bytes_received_s##</td>
+			</tr>
+		</tbody>
+
+		<thead>
+		<tr>
+			<td id='tabletoggle2_td' colspan='4'>Responses <img id='tabletoggle2' alt="" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAcxJREFUeNqkU01LW0EUPZP3kac0ghg3gkgsgtBif4KIezeuBHcqRKhUkBQqdOEmFmIXXXQhCN10J4GA4A9w50IkgguJGtSWEpss8jWvL8nL895JJyBdxOLAeTP3zj3nzp07TwRBgOcMczlZhBBinpAiO/YETp6SJgjpvc0oTM/7w85UYnE4NjUR7sk+y3mx1PffnCytTlCr1XiOvX45glar1VPg1bgJ4nRPalYqZbXwff9JAoZhQHOUQLVa6Qo0m83uBq/rdQkpJRqNBu13xCORCDRHCXAQj3a7rUTWkln8vHfxZWMUukPvdm4RHTTxcYnLbENzeIQ8rwkGB7uuhw8rk7j7VUc8eQXTtLG6fY0fBRdbb98oWwgDmqMEgiAEhpQeKTdgwcPB12kUSj7m1s/VzDb7LcuhO7ChOUrAMNjpUM0BBdiw7TD6LB+HuzPKzzPb7GfwKTRH3YFtv+gohSwSMLq1WYST/Vm6cZdWzqNOaI4ScJyBv+0JU32Pn7WUAWV0/mml5qjEl0dxduRPL1oUbPVENuereOapE5QLx0OlfGbn07eF9xD1sZ4vKfBvivnMZ+aRVRL06ef3wVX8x0/oE6rUeime+zs/CDAA4pvUMT+4VjEAAAAASUVORK5CYII="></td>
+		</tr>
+		</thead>
+		<tbody id='tabletoggle2_dest' class='dnone'>
+		<tr>
+			<td>Count /5s</td><td>##_resp_count_5s##</td>
+			<td>Count</td><td>##_resp_count##</td>
+		</tr>
+		<tr>
+			<td>Skipped /5s</td><td>##_resp_b_skipped_5s##</td>
+			<td>Skipped</td><td>##_resp_b_skipped##</td>
+			
+		</tr>
+		<tr>
+			<td>Skip Count /5s</td><td>##_resp_skipped_5s##</td>
+			<td>Skip Count</td><td>##_resp_skipped##</td>
+		</tr>
+		</tbody>
+		
+		
+	</table>
+
+	<div class='threads'>
+		Threads: ##_threads_states##<br>
+		
+		O - Opening new connection<br>
+		
+		&nbsp;S - Serving<br>
+		&nbsp;W - Writing Response<br>
+		
+		&nbsp;&nbsp;K - Keepalive<br>
+		&nbsp;&nbsp;X - Closing Connection<br>
+		
+	</div>
+	<div class='clear'>&nbsp;</div>
+</div>
+
+<div class='container'>
+	<h1>Handlers<i>Installed handlers & handler status</i></h1>
+
+	##handlers_table##
+</div>
+
+<div class='container'>
+	<h1>Thread Details<i>Threads status</i></h1>
+	 
+	##threadlist##
+	 
+	<div class='threads'>
+		Threads:<br>
+		
+		O - Opening new connection<br>
+		
+		&nbsp;Sr - Message was read<br>
+		&nbsp;Ss1 - Parameters processed<br>
+		&nbsp;W - Writing Response<br>
+		
+		&nbsp;&nbsp;K - Keepalive<br>
+		&nbsp;&nbsp;X - Closing Connection<br>		
+	</div>
+	<div class='clear'>&nbsp;</div>
+</div>
+
+<div class='container'>
+	<h1>HTTP Plugin<i>HTTP protocol support</i></h1>
+	
+	<div class='threads'>
+		Important: HTTP protocol is supported, but all stats are not counted towards global data and it's adviced to use sockets as this method has lower overhead<br>
+		Threads:
+	</div>
+	##http_threadlist##
+	
+	<div class='threads'>
+		R - Running, thread is generating response<br>
+		W - Writing data to network<br>
+		F - Finished<br>	
+	</div>
+	<div class='clear'>&nbsp;</div>
+</div>
+
+<div class='container'>
+	<h1>UDP Plugin<i>UDP protocol support</i></h1>
+	
+	<div class='threads'>
+		Important: UDP protocol is supported, but all stats are not counted towards global data. Reuqests made using UDP are not quaranteed to be processed<br>
+		Threads:
+	</div>
+	##udp_threadlist##
+	
+	<div class='threads'>
+		O - Reading Packet<br>
+		P - Processing request<br>
+		F - Finished<br>	
+		X - Error<br>	
+	</div>
+	<div class='clear'>&nbsp;</div>
+</div>
+
+
+##status_additional##
+
+<script>
+
+var els = document.getElementsByTagName('span');
+for (var i=0; i<els.length; i++) {
+	
+	if (els[i].className.indexOf("tooltip") <= -1) {
+		continue;
+	}
+	var el = els[i];
+		
+	function _cls(el, originalClass) {
+		el.onclick = function() {
+			if (el.className == originalClass)
+				el.className += " sel";
+			else
+				el.className = originalClass;
+		}
+	}; _cls(el, el.className);
+	
+	var childs = el.childNodes;
+	for (var ii=0; ii<childs.length; ii++)
+	{
+		childs[ii].onclick = function(e) {
+			if (!e)
+				e = window.event;
+			e.cancelBubble = true;
+			if (e.stopPropagation)
+				e.stopPropagation();
+			return false;
+		};
+	}
+}
+
+
+register_ttoggle('tabletoggle');
+register_ttoggle('tabletoggle2');
+
+function register_ttoggle(id)
+{
+	var tt = document.getElementById(id);
+	var tttd = document.getElementById(id+'_td');
+
+	(function (tt, tttd) {
+		
+		tt.onclick = tttd.onclick = function(e) {
+			ttdst = document.getElementById(id+'_dest');
+
+			ttdst.className = ttdst.className == '' ? 'dnone' : '' ;
+			tt.className = ttdst.className == '' ? 'act' : '';
+
+			if (!e)
+				var e = window.event;
+			e.cancelBubble = true;
+			if (e.stopPropagation)
+				e.stopPropagation();
+			return false;
+		}
+		
+	})(tt, tttd);
+	
+}
+	
+</script>
+
+
+</body>
+</html>
+

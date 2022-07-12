@@ -11,7 +11,7 @@ import (
 func runRequest(key string, message_body []byte, is_compressed bool, handler handlerFunc) {
 	// compression support!
 
-	if Config.debug {
+	if CfgIsDebug() {
 		fmt.Println("FROM UDP: ", string(message_body))
 	}
 

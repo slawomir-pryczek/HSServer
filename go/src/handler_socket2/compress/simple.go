@@ -4,8 +4,9 @@ import (
 	"bytes"
 	"compress/flate"
 	"fmt"
-	"handler_socket2/byteslabs"
 	"sync"
+
+	"handler_socket2/byteslabs"
 )
 
 const max_compressors = 20

@@ -2,9 +2,10 @@ package stats
 
 import (
 	"fmt"
-	"handler_socket2/hscommon"
 	"sync"
 	"time"
+
+	"handler_socket2/hscommon"
 )
 
 // #############################################################################

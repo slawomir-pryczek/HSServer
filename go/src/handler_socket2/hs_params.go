@@ -3,9 +3,10 @@ package handler_socket2
 import (
 	"bytes"
 	"encoding/binary"
-	"handler_socket2/byteslabs"
 	"strconv"
 	"strings"
+
+	"handler_socket2/byteslabs"
 )
 
 type HSParams struct {

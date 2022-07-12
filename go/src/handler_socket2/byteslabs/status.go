@@ -2,8 +2,9 @@ package byteslabs
 
 import (
 	"fmt"
-	"handler_socket2/hscommon"
 	"strconv"
+
+	"handler_socket2/hscommon"
 )
 
 func GetStatus() (string, string) {

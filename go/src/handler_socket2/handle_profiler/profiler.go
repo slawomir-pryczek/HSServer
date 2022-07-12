@@ -2,9 +2,10 @@ package handle_profiler
 
 import (
 	"fmt"
+	"runtime"
+
 	"handler_socket2"
 	"handler_socket2/hscommon"
-	"runtime"
 )
 
 type HandleProfiler struct {

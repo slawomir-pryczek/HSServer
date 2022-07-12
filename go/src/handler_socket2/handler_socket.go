@@ -5,11 +5,6 @@ import (
 	"compress/flate"
 	"encoding/binary"
 	"fmt"
-	"handler_socket2/byteslabs"
-	"handler_socket2/compress"
-	"handler_socket2/hscommon"
-	"handler_socket2/oslimits"
-	"handler_socket2/stats"
 	"io"
 	"io/ioutil"
 	"net"
@@ -19,9 +14,15 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"handler_socket2/byteslabs"
+	"handler_socket2/compress"
+	"handler_socket2/hscommon"
+	"handler_socket2/oslimits"
+	"handler_socket2/stats"
 )
 
-const version = "HSServer v4"
+const version = "HSServer v4.2022.001"
 
 var uptime_started int
 
@@ -32,7 +33,7 @@ func init() {
 	oslimits.SetOpenFilesLimit(262144)
 	uptime_started = int(time.Now().UnixNano()/1000000000) - 1 // so we won't divide by 0
 
-	compression_support := Config.Get("COMPRESSION", "mp-flate")
+	compression_support := Config().Get("COMPRESSION", "mp-flate")
 	if strings.Index(compression_support, "mp-flate") > -1 {
 		compressor_flate = compress.CreateCompressor(runtime.NumCPU(), compress.MakeFlate())
 	}
@@ -358,7 +359,7 @@ func serveSocket(conn *net.TCPConn, handler handlerFunc) {
 		_pinfo := params.getParamInfo()
 		newconn.StateServing(action, _pinfo)
 
-		if Config.debug {
+		if CfgIsDebug() {
 			fmt.Println("Rec:", bytes_rec_uncompressed, "b GUID:", string(guid))
 		}
 

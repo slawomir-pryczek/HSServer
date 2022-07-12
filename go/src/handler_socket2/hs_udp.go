@@ -297,7 +297,7 @@ func runRequestV2(key string, message_body []byte, is_compressed bool, handler h
 	}
 	// <<
 
-	if Config.debug {
+	if CfgIsDebug() {
 		fmt.Println("FROM UDP: ", string(message_body))
 	}
 
@@ -310,7 +310,7 @@ func runRequestV2(key string, message_body []byte, is_compressed bool, handler h
 
 	udpStatRequest(key, hsparams.GetParam("action", "?"), hsparams.getParamInfoHTML())
 	data := handler(hsparams)
-	if Config.debug {
+	if CfgIsDebug() {
 		fmt.Println(string(guid), ">>", data)
 	}
 	hsparams.Cleanup()

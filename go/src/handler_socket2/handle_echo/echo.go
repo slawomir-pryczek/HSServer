@@ -2,19 +2,18 @@ package handle_echo
 
 import (
 	"encoding/json"
-	"handler_socket2"
 	"strings"
+
+	"handler_socket2"
 )
 
 type HandleEcho struct {
 }
 
 func (this *HandleEcho) Initialize() {
-
 	handler_socket2.StatusPluginRegister(func() (string, string) {
 		return "Echo", "Echo plugin is enabled"
 	})
-
 }
 
 func (this *HandleEcho) Info() string {

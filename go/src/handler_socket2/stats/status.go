@@ -2,10 +2,11 @@ package stats
 
 import (
 	"fmt"
-	"handler_socket2/hscommon"
 	"sort"
 	"strconv"
 	"time"
+
+	"handler_socket2/hscommon"
 )
 
 func GetStatus(available_actions []string, uptime int) map[string]string {

@@ -18,7 +18,6 @@ var action_handlers = make([]ActionHandler, 0)
 var actionToHandlerNum = make(map[string]int)
 
 func RegisterHandler(handlers ...ActionHandler) {
-
 	for _, handler := range handlers {
 		handler.Initialize()
 		action_handlers = append(action_handlers, handler)
@@ -61,7 +60,7 @@ func StartServer(bind_to []string) {
 				startService(bt, handleRequest)
 			}
 
-			if Config.Get("FORCE_START", "") == "1" {
+			if Config().Get("FORCE_START", "") == "1" {
 				fmt.Println("WARNING: Can't bind to all interfaces, but FORCE_START in effect")
 			} else {
 				fmt.Fprintf(os.Stderr, "Cannot bind to: %s or unexpected thread exit\n", bt)
@@ -129,7 +128,7 @@ func handleRequest(data *HSParams) string {
 		return handlerServerStatus(data)
 	}
 
-	if Config.debug {
+	if CfgIsDebug() {
 		fmt.Printf("Action %s\n", action)
 	}
 
