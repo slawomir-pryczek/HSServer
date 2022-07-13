@@ -1,9 +1,9 @@
 package main
 
 import (
-	"handler_socket2"
-	"handler_socket2/handle_echo"
-	"handler_socket2/handle_profiler"
+	"github.com/slawomir-pryczek/HSServer/handler_socket2"
+	"github.com/slawomir-pryczek/HSServer/handler_socket2/handle_echo"
+	"github.com/slawomir-pryczek/HSServer/handler_socket2/handle_profiler"
 	"runtime"
 	"strings"
 )

@@ -5,7 +5,7 @@ import (
 	"net"
 	"strings"
 
-	"handler_socket2/compress"
+	"github.com/slawomir-pryczek/HSServer/handler_socket2/compress"
 )
 
 type conninfo struct {

@@ -15,11 +15,11 @@ import (
 	"strings"
 	"time"
 
-	"handler_socket2/byteslabs"
-	"handler_socket2/compress"
-	"handler_socket2/hscommon"
-	"handler_socket2/oslimits"
-	"handler_socket2/stats"
+	"github.com/slawomir-pryczek/HSServer/handler_socket2/byteslabs"
+	"github.com/slawomir-pryczek/HSServer/handler_socket2/compress"
+	"github.com/slawomir-pryczek/HSServer/handler_socket2/hscommon"
+	"github.com/slawomir-pryczek/HSServer/handler_socket2/oslimits"
+	"github.com/slawomir-pryczek/HSServer/handler_socket2/stats"
 )
 
 const version = "HSServer v4.2022.001"

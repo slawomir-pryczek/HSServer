@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strconv"
 
-	"handler_socket2/hscommon"
+	"github.com/slawomir-pryczek/HSServer/handler_socket2/hscommon"
 )
 
 func GetStatus() (string, string) {

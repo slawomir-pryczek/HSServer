@@ -87,7 +87,7 @@ package echo
 
 import (
 	"encoding/json"
-	"handler_socket2"
+	"github.com/slawomir-pryczek/HSServer/handler_socket2"
 )
 
 type HandleEcho struct {

@@ -1,7 +1,7 @@
 package compress
 
 import (
-	"handler_socket2/compress/snappy"
+	"github.com/slawomir-pryczek/HSServer/handler_socket2/compress/snappy"
 )
 
 type compressionsnappy struct {

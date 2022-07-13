@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"handler_socket2/hscommon"
+	"github.com/slawomir-pryczek/HSServer/handler_socket2/hscommon"
 )
 
 // #############################################################################

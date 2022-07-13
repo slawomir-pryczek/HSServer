@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"handler_socket2/hscommon"
+	"github.com/slawomir-pryczek/HSServer/handler_socket2/hscommon"
 )
 
 type HTTPPlugin func(http.ResponseWriter, http.Header, map[string]string, []byte) bool
