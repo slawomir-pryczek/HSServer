@@ -7,7 +7,7 @@ import (
 func _prefix_gen(s string, to_len int, with string) string {
 
 	if len(s) >= to_len {
-		return s
+		return ""
 	}
 
 	_r := to_len - len(s)
@@ -37,6 +37,10 @@ func StrPostfixHTML(s string, to_len int, with string) string {
 
 func StrRealLen(s string) int {
 
+	if len(s) == 0 {
+		return 0
+	}
+
 	htmlTagStart := '<'
 	htmlTagEnd := '>'
 
@@ -62,10 +66,40 @@ func StrRealLen(s string) int {
 	return count
 }
 
+func StripHTML(s string) string {
+	ret := ""
+	htmlTagStart := '<'
+	htmlTagEnd := '>'
+
+	sr := []rune(s)
+	should_count := true
+	for _, c := range []rune(sr) {
+		if c == htmlTagStart {
+			should_count = false
+		}
+		if c == htmlTagEnd {
+			should_count = true
+			continue
+		}
+		if should_count {
+			ret += string(c)
+		}
+	}
+
+	return ret
+}
+
 func StrMessage(m string, is_ok bool) string {
 	if is_ok {
 		return "<span style='color: #449944; font-family: monospace'> <b>⬤</b> " + m + "</span>"
 	} else {
 		return "<span style='color: #dd4444; font-family: monospace'> <b>⮿</b> " + m + "</span>"
 	}
+}
+
+func StrLimitLength(s string, max_len int) string {
+	if len(s) <= max_len {
+		return s
+	}
+	return s[0:max_len]
 }
