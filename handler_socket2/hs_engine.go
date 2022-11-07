@@ -2,6 +2,7 @@ package handler_socket2
 
 import (
 	"fmt"
+	"github.com/slawomir-pryczek/HSServer/handler_socket2/config"
 	"net"
 	"os"
 	"sync"
@@ -18,6 +19,7 @@ var action_handlers = make([]ActionHandler, 0)
 var actionToHandlerNum = make(map[string]int)
 
 func RegisterHandler(handlers ...ActionHandler) {
+
 	for _, handler := range handlers {
 		handler.Initialize()
 		action_handlers = append(action_handlers, handler)
@@ -42,8 +44,10 @@ var boundTo []string = []string{}
 var boundMutex sync.Mutex
 
 func StartServer(bind_to []string) {
-	var wg sync.WaitGroup
 
+	compression_ex_read_config()
+
+	var wg sync.WaitGroup
 	wg.Add(1)
 
 	for _, bt := range bind_to {
@@ -60,7 +64,7 @@ func StartServer(bind_to []string) {
 				startService(bt, handleRequest)
 			}
 
-			if Config().Get("FORCE_START", "") == "1" {
+			if config.Config().Get("FORCE_START", "") == "1" {
 				fmt.Println("WARNING: Can't bind to all interfaces, but FORCE_START in effect")
 			} else {
 				fmt.Fprintf(os.Stderr, "Cannot bind to: %s or unexpected thread exit\n", bt)
@@ -128,7 +132,7 @@ func handleRequest(data *HSParams) string {
 		return handlerServerStatus(data)
 	}
 
-	if CfgIsDebug() {
+	if config.CfgIsDebug() {
 		fmt.Printf("Action %s\n", action)
 	}
 
