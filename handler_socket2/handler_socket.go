@@ -23,7 +23,7 @@ import (
 	"github.com/slawomir-pryczek/HSServer/handler_socket2/stats"
 )
 
-const version = "HSServer v4.2022.002"
+const version = "HSServer v4.2022.003"
 
 var uptime_started int
 

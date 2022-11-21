@@ -1,16 +1,16 @@
-package byteslabs
+package byteslabs2
 
 import (
 	"fmt"
+	"github.com/slawomir-pryczek/HSServer/handler_socket2/hscommon"
 	"strconv"
 	"strings"
-
-	"github.com/slawomir-pryczek/HSServer/handler_socket2/hscommon"
 )
 
-func GetStatus() (string, string) {
+func (this *BSManager) GetStatus() (string, string) {
+
 	ret := "<pre>"
-	ret += fmt.Sprintf("Slab Allocator. Slab Size: %d x %d Slabs = %d items per Page. %d Pages.\n", slab_size, slab_count, slab_size*slab_count, mem_chunks_count)
+	ret += fmt.Sprintf("Slab Allocator. Slab Size: %d x %d Slabs = %d items per Page. %d Pages.\n", this.conf_slab_size, this.conf_slab_count, this.conf_slab_size*this.conf_slab_count, len(this.mem_chunks))
 	ret += "Alloc Full - We're allocating >1 SLABS, happens at page begin\n"
 	ret += "Alloc Full Small - We're allocating 1 SLAB, happens at page's end to prevent fragmentation\n"
 	ret += "Tail - We can put the data into already allocated SLAB's tail\n"
@@ -31,7 +31,7 @@ func GetStatus() (string, string) {
 		"<span>OOM</span>", "Slabs", "<span>Routed</span>", "Routed Alloc")
 	tg.SetClass("tab salloc")
 
-	for k, chunk := range mem_chunks {
+	for k, chunk := range this.mem_chunks {
 		chunk.mu.Lock()
 
 		_slabs := ""
@@ -64,12 +64,12 @@ func GetStatus() (string, string) {
 	return "Slab Allocator \\ QCompress", ret + tg.Render()
 }
 
-func GetStatusStr() string {
+func (this *BSManager) GetStatusStr() string {
 	ret := make([]string, 0, 40)
 	ret = append(ret, "=====")
 	total_failed := 0
 	total_f, total_fs, total_t := 0, 0, 0
-	for k, v := range mem_chunks {
+	for k, v := range this.mem_chunks {
 		ret = append(ret, fmt.Sprint(k, "Full:", v.stat_alloc_full, "Full Small:", v.stat_alloc_full_small,
 			"Tail:", v.stat_alloc_tail, "OOM:", v.stat_oom, "Routed:", v.stat_routed,
 			"Slab taken:", v.used_slab_count))
@@ -83,5 +83,6 @@ func GetStatusStr() string {
 	ret = append(ret, fmt.Sprintf("=Totals ... Full: %d Full Small: %d Tail: %d \n", total_f, total_fs, total_t))
 	ret = append(ret, fmt.Sprintf("=Items Total: %d, Failed: %d\n",
 		total_f+total_fs+total_t+total_failed, total_failed))
+	ret = append(ret, fmt.Sprint("Real Total: ", ttT_total))
 	return strings.Join(ret, "\n")
 }

@@ -1,18 +1,14 @@
-package byteslabs
+package byteslabs2
 
 import (
 	"sync"
 	"sync/atomic"
 )
 
-const mem_chunks_count = 8
-const slab_size = 40000
-const slab_count = 100
-
 type mem_chunk struct {
 	memory []byte
 
-	slab_used [slab_count]bool
+	slab_used []bool
 	mu        sync.Mutex
 
 	stat_allocated        int64
@@ -34,43 +30,49 @@ type Allocator struct {
 
 	is_additional  bool
 	addl_allocator *Allocator
+	manager        *BSManager
 }
 
-var mem_chunks [mem_chunks_count]*mem_chunk
+type BSManager struct {
+	mem_chunks      []*mem_chunk
+	conf_slab_size  int // size of single memory slab
+	conf_slab_count int // number of slabs in a chunk
+}
 
-func init() {
-	for k, _ := range mem_chunks {
-		mem_chunks[k] = &mem_chunk{memory: make([]byte, slab_size*slab_count)}
+func Make(mem_chunks_count, slab_size, slab_count int) *BSManager {
+	_mc := make([]*mem_chunk, mem_chunks_count)
+	for i := 0; i < len(_mc); i++ {
+		_mc[i] = &mem_chunk{memory: make([]byte, slab_size*slab_count), slab_used: make([]bool, slab_count)}
 	}
+	return &BSManager{_mc, slab_size, slab_count}
 }
 
 var curr_mem_chunk = uint32(0)
 
-func MakeAllocator() *Allocator {
+func (this *BSManager) MakeAllocator() *Allocator {
 
 	_mc := atomic.AddUint32(&curr_mem_chunk, 1)
-	_mc = _mc % mem_chunks_count
+	_mc = _mc % uint32(len(this.mem_chunks))
 
 	t1 := make([]int, 0, 5)
 	t2 := make([]int, 0, 5)
-	return &Allocator{mem_chunk: mem_chunks[_mc], slab_used: t1, slab_free_space: t2}
+	return &Allocator{manager: this, mem_chunk: this.mem_chunks[_mc], slab_used: t1, slab_free_space: t2}
 }
 
-// NOTE: This will always use locking facilities provided by Allocate function!
-func (this *Allocator) take_additional(slab_needed int) {
-	// we won't create additional allocator if the allocator is additional already
+func (this *Allocator) _take_additional(slab_needed int) {
 	if this.is_additional || this.addl_allocator != nil {
+		// we won't create additional allocator if the allocator is additional already
 		return
 	}
 
 	best_slab := -1
 	chunks_free := -1
-	for i := 0; i < mem_chunks_count; i++ {
-		if mem_chunks[i] == this.mem_chunk {
+	for i := 0; i < len(this.manager.mem_chunks); i++ {
+		if this.manager.mem_chunks[i] == this.mem_chunk {
 			continue
 		}
 
-		_free := slab_count - int(atomic.LoadInt32(&mem_chunks[i].used_slab_count))
+		_free := this.manager.conf_slab_count - int(atomic.LoadInt32(&this.manager.mem_chunks[i].used_slab_count))
 		if _free >= slab_needed && _free > chunks_free {
 			best_slab = i
 			chunks_free = _free
@@ -82,7 +84,7 @@ func (this *Allocator) take_additional(slab_needed int) {
 
 	t1 := make([]int, 0, 5)
 	t2 := make([]int, 0, 5)
-	this.addl_allocator = &Allocator{mem_chunk: mem_chunks[best_slab], is_additional: true,
+	this.addl_allocator = &Allocator{manager: this.manager, mem_chunk: this.manager.mem_chunks[best_slab], is_additional: true,
 		slab_used: t1, slab_free_space: t2}
 }
 
@@ -91,7 +93,6 @@ func (this *Allocator) Release() {
 	if len(this.slab_used) == 0 && this.addl_allocator == nil {
 		return
 	}
-
 	mem_chunk := this.mem_chunk
 
 	mem_chunk.mu.Lock()
@@ -110,12 +111,11 @@ func (this *Allocator) Release() {
 	if _allocator_to_clean != nil {
 		_allocator_to_clean.Release()
 	}
-
 }
 
 func (this *Allocator) _alloc(mc *mem_chunk, slab_num, slabs_needed, slab_free, size int) []byte {
 
-	start_pos := slab_num * slab_size
+	start_pos := slab_num * this.manager.conf_slab_size
 	//fmt.Printf("ALLOC FULLChunk %d size %d [ %d - %d ]\n", slab_num, size, start_pos, start_pos+size)
 
 	for slabs_needed > 0 {
@@ -137,18 +137,22 @@ func (this *Allocator) _alloc(mc *mem_chunk, slab_num, slabs_needed, slab_free, 
 	return mc.memory[start_pos : start_pos : start_pos+size]
 }
 
+var ttT_total = uint32(0)
+
 func (this *Allocator) Allocate(size int) []byte {
 
 	if size <= 96 {
 		return make([]byte, 0, size)
 	}
 
+	atomic.AddUint32(&ttT_total, 1)
+
 	this.mem_chunk.mu.Lock()
 	slb_mem := this.allocate_slab(size)
 
 	_addl := this.addl_allocator
 	if slb_mem == nil && _addl == nil && this.is_additional == false {
-		this.take_additional((size / slab_size) + 5)
+		this._take_additional((size / this.manager.conf_slab_size) + 5)
 		_addl = this.addl_allocator
 	}
 	if slb_mem == nil && _addl != nil {
@@ -169,6 +173,9 @@ func (this *Allocator) Allocate(size int) []byte {
 }
 
 func (this *Allocator) allocate_slab(size int) []byte {
+
+	slab_size := this.manager.conf_slab_size
+	slab_count := this.manager.conf_slab_count
 
 	slab_free := (slab_size - (size % slab_size)) % slab_size
 	slabs_needed := size / slab_size
