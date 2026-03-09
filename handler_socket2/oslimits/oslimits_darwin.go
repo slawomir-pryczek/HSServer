@@ -1,5 +1,4 @@
 package oslimits
-package oslimits
 
 import (
 	"fmt"
@@ -7,35 +6,34 @@ import (
 	"syscall"
 )
 
+func SetOpenFilesLimit(num int) bool {
 
+	var rLimit syscall.Rlimit
+	err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &rLimit)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error Getting Rlimit "+err.Error())
+		return false
+	}
 
+	rLimit.Max = uint64(num)
+	rLimit.Cur = uint64(num)
 
+	err = syscall.Setrlimit(syscall.RLIMIT_NOFILE, &rLimit)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error Setting Rlimit "+err.Error())
+		return false
+	}
 
+	err = syscall.Getrlimit(syscall.RLIMIT_NOFILE, &rLimit)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error Getting Rlimit "+err.Error())
+		return false
+	}
 
+	if rLimit.Max != uint64(num) || rLimit.Cur != uint64(num) {
+		_tmp := fmt.Sprintf("Error Setting Rlimit, requested %d, got %d/%d ", num, rLimit.Cur, rLimit.Max)
+		fmt.Fprintf(os.Stderr, _tmp)
+	}
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-}	return true	}		fmt.Fprintf(os.Stderr, _tmp)		_tmp := fmt.Sprintf("Error Setting Rlimit, requested %d, got %d/%d ", num, rLimit.Cur, rLimit.Max)	if rLimit.Max != uint64(num) || rLimit.Cur != uint64(num) {	}		return false		fmt.Fprintf(os.Stderr, "Error Getting Rlimit "+err.Error())	if err != nil {	err = syscall.Getrlimit(syscall.RLIMIT_NOFILE, &rLimit)	}		return false		fmt.Fprintf(os.Stderr, "Error Setting Rlimit "+err.Error())	if err != nil {	err = syscall.Setrlimit(syscall.RLIMIT_NOFILE, &rLimit)	rLimit.Cur = uint64(num)	rLimit.Max = uint64(num)	}		return false		fmt.Fprintf(os.Stderr, "Error Getting Rlimit "+err.Error())	if err != nil {	err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &rLimit)	var rLimit syscall.Rlimitfunc SetOpenFilesLimit(num int) bool {
+	return true
+}
