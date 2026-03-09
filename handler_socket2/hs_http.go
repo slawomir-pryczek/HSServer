@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"sort"
 	"strconv"
 	"strings"
@@ -31,10 +32,23 @@ func startServiceHTTP(bindTo string, handler handlerFunc) {
 		req_len := 0
 
 		params := make(map[string]string)
-		for k, v := range r.URL.Query() {
-			v_ := strings.Join(v, ",")
-			params[k] = v_
-			req_len += len(k) + len(v)
+
+		// first try parsing whole query, if something fails use golang's default parser
+		// this way we can try to correct semicolon issue - as golang drops parameters with semicolons
+		// due to security concerns
+		vals, err :=  url.ParseQuery(strings.ReplaceAll(r.URL.RawQuery, ";", "%3b"))
+		if (err == nil) {
+			for k, v := range vals {
+				v_ := strings.Join(v, ",")
+				params[k] = v_
+				req_len += len(k) + len(v)
+			}
+		} else {
+			for k, v := range r.URL.Query() {
+				v_ := strings.Join(v, ",")
+				params[k] = v_
+				req_len += len(k) + len(v)
+			}
 		}
 
 		for k, v := range r.Header {
