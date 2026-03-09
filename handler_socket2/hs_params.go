@@ -175,6 +175,13 @@ func (p *HSParams) GetParamI(attr string, def int) int {
 	return def
 }
 
+func (p *HSParams) GetParamExists(attr string) bool {
+	if _, ok := p.param[attr]; ok {
+		return true
+	}
+	return false;
+}
+
 func (p *HSParams) getParamInfoHTML() string {
 
 	_req_txt := ""
