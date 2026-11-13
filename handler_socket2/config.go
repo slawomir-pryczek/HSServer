@@ -1,5 +1,6 @@
 package handler_socket2
 
+/*
 import (
 	"fmt"
 	"os"
@@ -137,3 +138,4 @@ func (this *cfg) GetI(attr string, def int) int {
 func (this *cfg) GetCompressionThreshold() int {
 	return this.compression_threshold
 }
+*/

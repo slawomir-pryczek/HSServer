@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"sync"
+	"sync/atomic"
 )
 
 type ActionHandler interface {
@@ -20,16 +21,42 @@ var actionToHandlerNum = make(map[string]int)
 
 func RegisterHandler(handlers ...ActionHandler) {
 
+	wg := sync.WaitGroup{}
+	wg.Add(len(handlers))
+
+	handlers_done := int32(0)
 	for _, handler := range handlers {
-		handler.Initialize()
-		action_handlers = append(action_handlers, handler)
+		handler := handler
+		go func() {
+			handler.Initialize()
+			wg.Done()
+			fmt.Println("+++ Initializing modules ", atomic.AddInt32(&handlers_done, 1), "/", len(handlers))
+			fmt.Println("+++", handler.Info())
+		}()
 	}
+	wg.Wait()
+
+	action_handlers = append(action_handlers, handlers...)
 
 	for hindex, handler := range action_handlers {
 		for _, action := range handler.GetActions() {
 			actionToHandlerNum[action] = hindex
 		}
 	}
+
+	/*
+
+
+		for _, handler := range handlers {
+			handler.Initialize()
+			action_handlers = append(action_handlers, handler)
+		}
+
+		for hindex, handler := range action_handlers {
+			for _, action := range handler.GetActions() {
+				actionToHandlerNum[action] = hindex
+			}
+		}*/
 }
 
 type StatusPlugin func() (string, string)
@@ -44,8 +71,6 @@ var boundTo []string = []string{}
 var boundMutex sync.Mutex
 
 func StartServer(bind_to []string) {
-
-	compression_ex_read_config()
 
 	var wg sync.WaitGroup
 	wg.Add(1)

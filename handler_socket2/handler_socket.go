@@ -42,6 +42,7 @@ func init() {
 	}
 
 	StatusPluginRegister(_comp_status)
+	compression_ex_read_config()
 }
 
 func GetStatus() map[string]string {
